@@ -95,6 +95,53 @@ class OperationsShell extends StatefulWidget {
 class _OperationsShellState extends State<OperationsShell> {
   int _tab = 0;
   String? _morePage;
+  String _selectedTripStatus = 'All statuses';
+  String _alertSection = 'Needs action';
+  String _situationKind = 'All kinds';
+  String _historyOutcome = 'All closed situations';
+
+  static const _alertSections = [
+    'Needs action',
+    'Earlier detections',
+    'History',
+    'Informational records',
+  ];
+  static const _situationKinds = [
+    'All kinds',
+    'Delivery progress',
+    'Tracking',
+    'Route and sites',
+    'Delivered quantity',
+    'Compliance',
+    'Vehicle identity',
+    'Vehicle condition (Intelligence)',
+    'Maintenance',
+    'ADAPTIQ Settlement',
+    'Asset economics (FleetOps)',
+  ];
+  static const _historyOutcomes = [
+    'All closed situations',
+    'Superseded: the trip ended',
+    'Closed by a person',
+    'Cleared by new evidence',
+    'Closed earlier, way not recorded',
+  ];
+  static const _sampleAlerts = [
+    _SampleAlert(
+      kind: 'Tracking',
+      title: 'Vehicle reporting gap',
+      detail: 'DT-03 · Last report 42 minutes ago · Current trip TR-2045',
+      severity: 'Warning',
+      icon: Icons.cell_tower_rounded,
+    ),
+    _SampleAlert(
+      kind: 'Delivered quantity',
+      title: 'Delivery confirmation needed',
+      detail: 'TR-2046 · Waiting for a supervisor to confirm delivered tonnes',
+      severity: 'Action',
+      icon: Icons.fact_check_outlined,
+    ),
+  ];
 
   final List<Trip> _trips = [
     const Trip(
@@ -111,7 +158,7 @@ class _OperationsShellState extends State<OperationsShell> {
       vehicle: 'DT-12',
       route: 'Ogun Yard → Apapa Terminal',
       material: 'Laterite',
-      status: 'Loading',
+      status: 'At origin',
       progress: 0.18,
       eta: 'Started 9:12 AM',
     ),
@@ -124,6 +171,26 @@ class _OperationsShellState extends State<OperationsShell> {
     _NavItem('Alerts', Icons.notifications_none_rounded),
     _NavItem('More', Icons.more_horiz_rounded),
   ];
+
+  static const _tripStatuses = [
+    'All statuses',
+    'Planned',
+    'Dispatched',
+    'At origin',
+    'In transit',
+    'Approaching',
+    'Arrived',
+    'Completed',
+    'Exception',
+    'Cancelled',
+  ];
+
+  List<Trip> get _visibleTrips {
+    if (_selectedTripStatus == 'All statuses') return _trips;
+    return _trips
+        .where((trip) => trip.status == _selectedTripStatus)
+        .toList();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -330,14 +397,52 @@ class _OperationsShellState extends State<OperationsShell> {
   }
 
   Widget _tripsPage() {
+    final visibleTrips = _visibleTrips;
+    final tripCountLabel =
+        visibleTrips.length == 1 ? '1 trip' : '${visibleTrips.length} trips';
+
     return _pageScroll([
       _pageHeading('Trips', 'Monitor material movement'),
       const DemoNotice(compact: true),
-      const SizedBox(height: 16),
+      const SizedBox(height: 14),
+      Card(
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              DropdownButtonFormField<String>(
+                key: const ValueKey('trip-status-filter'),
+                initialValue: _selectedTripStatus,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Trip status',
+                  prefixIcon: Icon(Icons.filter_list_rounded),
+                ),
+                items: [
+                  for (final status in _tripStatuses)
+                    DropdownMenuItem(value: status, child: Text(status)),
+                ],
+                onChanged: (status) {
+                  if (status != null) {
+                    setState(() => _selectedTripStatus = status);
+                  }
+                },
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Optional · Show only trips in one status.',
+                style: TextStyle(color: _muted, fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+      ),
+      const SizedBox(height: 12),
       FilledButton.icon(
         onPressed: _showCreateTrip,
         icon: const Icon(Icons.add_rounded),
-        label: const Text('Create trip'),
+        label: const Text('New trip'),
         style: FilledButton.styleFrom(
           minimumSize: const Size.fromHeight(50),
           backgroundColor: _blue,
@@ -345,28 +450,23 @@ class _OperationsShellState extends State<OperationsShell> {
         ),
       ),
       const SizedBox(height: 18),
-      Row(
-        children: [
-          Text(
-            '${_trips.length} active',
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const Spacer(),
-          const StatusPill(label: 'All statuses', color: _muted),
-        ],
+      Text(
+        _selectedTripStatus == 'All statuses'
+            ? tripCountLabel
+            : '$tripCountLabel · $_selectedTripStatus',
+        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
       ),
       const SizedBox(height: 12),
-      if (_trips.isEmpty)
-        const EmptyState(
+      if (visibleTrips.isEmpty)
+        EmptyState(
           icon: Icons.alt_route_rounded,
-          title: 'No trips yet',
-          detail: 'Create a trip to start tracking material movement.',
+          title: _trips.isEmpty ? 'No trips' : 'No trips in this status',
+          detail: _trips.isEmpty
+              ? 'Create your first trip to begin tracking material movement.'
+              : 'No trips match "$_selectedTripStatus". Try another status or create a trip.',
         )
       else
-        for (final trip in _trips) ...[
+        for (final trip in visibleTrips) ...[
           TripCard(trip: trip, showProgress: true),
           const SizedBox(height: 12),
         ],
@@ -477,52 +577,161 @@ class _OperationsShellState extends State<OperationsShell> {
   }
 
   Widget _alertsPage() {
+    final visibleAlerts = _sampleAlerts
+        .where((alert) =>
+            _situationKind == 'All kinds' || alert.kind == _situationKind)
+        .toList();
+    final needsAction = _alertSection == 'Needs action';
+    final isHistory = _alertSection == 'History';
+    final explanation = switch (_alertSection) {
+      'Needs action' =>
+        'Current trips first, then completed work whose figures are held back for confirmation, then vehicle condition with no trip waiting. Within each group: critical, warning and information, then ungraded situations, then longest-waiting first. The order is provisional.\n\nDumptrak alerts, overdue maintenance positions and completion evidence refused by Settlement are included. FleetOps asset economics is shown to administrators only.',
+      'Earlier detections' =>
+        'Conditions found on an earlier day, with no evidence from today that they continue, and findings without an explanation Dumptrak can show. None is resolved: each stays open until closed or seen again today, when it returns to Needs action.',
+      'History' =>
+        'How each situation left the queue. Nothing here is deleted; a closed or superseded situation does not mean the vehicle is now fine.',
+      _ =>
+        'Completed deliveries, published documents and manual overrides. These records are kept for later questions and are never counted as work.',
+    };
+
     return _pageScroll([
-      _pageHeading('Alerts', 'Situations that may need your attention'),
+      _pageHeading(
+        'Alerts',
+        'Open situations, earlier detections and records kept alongside them.',
+      ),
       const DemoNotice(compact: true),
-      const SizedBox(height: 18),
-      const Wrap(
+      const SizedBox(height: 16),
+      Wrap(
         spacing: 8,
         runSpacing: 8,
         children: [
-          StatusPill(label: 'Needs action · 2', color: _amber),
-          StatusPill(label: 'Earlier detections · 5', color: _blue),
+          for (final section in _alertSections)
+            ChoiceChip(
+              key: ValueKey('alert-section-$section'),
+              label: Text(section),
+              selected: _alertSection == section,
+              onSelected: (_) => setState(() => _alertSection = section),
+            ),
         ],
       ),
       const SizedBox(height: 16),
-      const AlertCard(
-        title: 'Vehicle reporting gap',
-        detail: 'DT-03 · Last report 42 minutes ago · Current trip TR-2045',
-        severity: 'Warning',
-        icon: Icons.cell_tower_rounded,
-      ),
-      const SizedBox(height: 12),
-      const AlertCard(
-        title: 'Delivery confirmation needed',
-        detail:
-            'TR-2046 · Waiting for a supervisor to confirm delivered tonnes',
-        severity: 'Action',
-        icon: Icons.fact_check_outlined,
-      ),
-      const SizedBox(height: 22),
-      const SectionHeading(title: 'Informational records'),
-      const SizedBox(height: 10),
-      const PanelCard(
-        child: Row(
+      PanelCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.info_outline_rounded, color: _blue),
-            SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                '5 earlier detections were reviewed this week.',
-                style: TextStyle(height: 1.45),
-              ),
+            SectionHeading(title: _alertSection),
+            const SizedBox(height: 6),
+            Text(
+              needsAction ? '${visibleAlerts.length} open sample situations' : '0 records',
+              style: const TextStyle(color: _muted, fontSize: 12),
             ),
-            Icon(Icons.chevron_right_rounded, color: _muted),
+            const SizedBox(height: 18),
+            if (needsAction) ...[
+              _alertFilter(
+                filterKey: 'situation-kind-filter',
+                label: 'Kind of situation (optional)',
+                value: _situationKind,
+                options: _situationKinds,
+                onChanged: (value) => setState(() => _situationKind = value),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Shows one kind of situation, such as delivery progress or maintenance. Filtering preserves the queue order.',
+                style: TextStyle(color: _muted, fontSize: 12, height: 1.5),
+              ),
+              const SizedBox(height: 16),
+              if (visibleAlerts.isEmpty)
+                const EmptyState(
+                  icon: Icons.help_outline_rounded,
+                  title: 'No situations match this kind',
+                  detail: 'Try All kinds to see the sample action queue. Missing reports are not proof that vehicles are operating normally.',
+                )
+              else
+                for (final alert in visibleAlerts) ...[
+                  AlertCard(
+                    title: alert.title,
+                    detail: alert.detail,
+                    severity: alert.severity,
+                    icon: alert.icon,
+                  ),
+                  const SizedBox(height: 10),
+                ],
+            ] else ...[
+              if (isHistory) ...[
+                _alertFilter(
+                  filterKey: 'history-outcome-filter',
+                  label: 'How it left the queue (optional)',
+                  value: _historyOutcome,
+                  options: _historyOutcomes,
+                  onChanged: (value) => setState(() => _historyOutcome = value),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Shows how situations left the queue: superseded when their trip ended, closed by a person, or cleared by new evidence.',
+                  style: TextStyle(color: _muted, fontSize: 12, height: 1.5),
+                ),
+                const ExpansionTile(
+                  key: PageStorageKey('history-guidance'),
+                  tilePadding: EdgeInsets.zero,
+                  title: Text(
+                    'More about how it left the queue',
+                    style: TextStyle(fontSize: 13),
+                  ),
+                  children: [
+                    Padding(
+                      padding: EdgeInsets.only(bottom: 16),
+                      child: Text(
+                        'Superseded situations concerned a trip that was completed or cancelled. Closed situations were dealt with by a person; this does not say the condition cleared. Cleared situations ended because evidence changed, such as a tracker reporting again or tonnes being confirmed. Closed earlier means the way it ended was not recorded.',
+                        style: TextStyle(color: _muted, fontSize: 12, height: 1.5),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Text(
+                  isHistory && _historyOutcome != 'All closed situations'
+                      ? 'Nothing recorded for "$_historyOutcome".'
+                      : 'Nothing recorded here.',
+                  style: const TextStyle(color: _muted),
+                ),
+              ),
+            ],
+            const Divider(color: _border, height: 28),
+            Text(
+              explanation,
+              style: const TextStyle(color: _muted, fontSize: 12, height: 1.5),
+            ),
           ],
         ),
       ),
     ]);
+  }
+
+  Widget _alertFilter({
+    required String filterKey,
+    required String label,
+    required String value,
+    required List<String> options,
+    required ValueChanged<String> onChanged,
+  }) {
+    return DropdownButtonFormField<String>(
+      key: ValueKey(filterKey),
+      initialValue: value,
+      isExpanded: true,
+      decoration: InputDecoration(labelText: label),
+      items: [
+        for (final option in options)
+          DropdownMenuItem(
+            value: option,
+            child: Text(option, maxLines: 2, overflow: TextOverflow.ellipsis),
+          ),
+      ],
+      onChanged: (selected) {
+        if (selected != null) onChanged(selected);
+      },
+    );
   }
 
   Widget _morePageView() {
@@ -706,21 +915,30 @@ class _OperationsShellState extends State<OperationsShell> {
   }
 
   Future<void> _showCreateTrip() async {
-    final trip = await showModalBottomSheet<Trip>(
+    await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: _surface,
       showDragHandle: true,
-      builder: (context) => const CreateTripSheet(),
-    );
-
-    if (trip == null || !mounted) return;
-
-    setState(() => _trips.insert(0, trip));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Demo trip added on this device only.')),
+      builder: (context) => const TripSetupSheet(),
     );
   }
+}
+
+class _SampleAlert {
+  const _SampleAlert({
+    required this.kind,
+    required this.title,
+    required this.detail,
+    required this.severity,
+    required this.icon,
+  });
+
+  final String kind;
+  final String title;
+  final String detail;
+  final String severity;
+  final IconData icon;
 }
 
 class Trip {
@@ -743,99 +961,211 @@ class Trip {
   final String eta;
 }
 
-class CreateTripSheet extends StatefulWidget {
-  const CreateTripSheet({super.key});
+class TripSetupSheet extends StatelessWidget {
+  const TripSetupSheet({super.key});
 
-  @override
-  State<CreateTripSheet> createState() => _CreateTripSheetState();
-}
-
-class _CreateTripSheetState extends State<CreateTripSheet> {
-  final _formKey = GlobalKey<FormState>();
-  final _vehicle = TextEditingController();
-  final _origin = TextEditingController();
-  final _destination = TextEditingController();
-  final _material = TextEditingController();
-
-  @override
-  void dispose() {
-    _vehicle.dispose();
-    _origin.dispose();
-    _destination.dispose();
-    _material.dispose();
-    super.dispose();
-  }
+  static const _requirements = [
+    _TripSetupRequirement(
+      name: 'Project',
+      isRequired: true,
+      description:
+          'Every trip belongs to a project. Assign a customer to it for portal visibility.',
+    ),
+    _TripSetupRequirement(
+      name: 'Site',
+      isRequired: true,
+      description:
+          'Add at least one site with coordinates and geofence radii. Destinations are chosen per trip.',
+    ),
+    _TripSetupRequirement(
+      name: 'Driver',
+      isRequired: false,
+      description: 'Needed for a complete chain-of-custody record.',
+    ),
+    _TripSetupRequirement(
+      name: 'Vehicle',
+      isRequired: false,
+      description: 'Needed for a complete chain-of-custody record.',
+    ),
+    _TripSetupRequirement(
+      name: 'Telemetry device',
+      isRequired: false,
+      description: 'Required for live GPS tracking and automatic geofence detection.',
+    ),
+    _TripSetupRequirement(
+      name: 'Material',
+      isRequired: false,
+      description:
+          'Defines what is being hauled; load quantity is entered per trip.',
+    ),
+  ];
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        20,
-        4,
-        20,
-        MediaQuery.viewInsetsOf(context).bottom + 24,
-      ),
-      child: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Create a trip',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+    return SafeArea(
+      child: FractionallySizedBox(
+        heightFactor: 0.88,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 12, 14),
+              child: Row(
+                children: [
+                  const Icon(Icons.warning_amber_rounded, color: _amber),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Text(
+                      'Before you can create a trip',
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Close',
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
               ),
-              const SizedBox(height: 5),
-              const Text(
-                'This trip is a local demo record, not a dispatch.',
-                style: TextStyle(color: _muted, fontSize: 13),
+            ),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                children: [
+                  const _SetupBlockerNotice(),
+                  const SizedBox(height: 12),
+                  for (final requirement in _requirements)
+                    _TripSetupRequirementTile(requirement: requirement),
+                  const SizedBox(height: 8),
+                  const Divider(color: _border),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Ask your administrator to finish the required project and site setup. Recommended records can be added to improve trip tracking and chain-of-custody.',
+                    style: TextStyle(color: _muted, fontSize: 12, height: 1.5),
+                  ),
+                ],
               ),
-              const SizedBox(height: 18),
-              _field(_vehicle, 'Vehicle', 'e.g. DT-21'),
-              const SizedBox(height: 12),
-              _field(_origin, 'Origin', 'Pickup location'),
-              const SizedBox(height: 12),
-              _field(_destination, 'Destination', 'Delivery location'),
-              const SizedBox(height: 12),
-              _field(_material, 'Material', 'e.g. Granite aggregate'),
-              const SizedBox(height: 18),
-              FilledButton(
-                onPressed: _save,
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size.fromHeight(50),
-                  backgroundColor: _blue,
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
+              child: OutlinedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(48),
                 ),
-                child: const Text('Add demo trip'),
+                child: const Text('Close'),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
+}
 
-  Widget _field(TextEditingController controller, String label, String hint) {
-    return TextFormField(
-      controller: controller,
-      textCapitalization: TextCapitalization.words,
-      validator: (value) =>
-          value == null || value.trim().isEmpty ? 'Enter $label' : null,
-      decoration: InputDecoration(labelText: label, hintText: hint),
+class _TripSetupRequirement {
+  const _TripSetupRequirement({
+    required this.name,
+    required this.isRequired,
+    required this.description,
+  });
+
+  final String name;
+  final bool isRequired;
+  final String description;
+}
+
+class _TripSetupRequirementTile extends StatelessWidget {
+  const _TripSetupRequirementTile({required this.requirement});
+
+  final _TripSetupRequirement requirement;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = requirement.isRequired ? const Color(0xFFFF5C58) : _amber;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: _border)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Icon(Icons.circle_outlined, size: 14, color: color),
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${requirement.name}${requirement.isRequired ? ' (required)' : ' (recommended)'}',
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  requirement.description,
+                  style: const TextStyle(
+                    color: _muted,
+                    fontSize: 12,
+                    height: 1.45,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          const Padding(
+            padding: EdgeInsets.only(top: 2),
+            child: Text(
+              'Ask your admin',
+              style: TextStyle(
+                color: _muted,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
+}
 
-  void _save() {
-    if (!_formKey.currentState!.validate()) return;
+class _SetupBlockerNotice extends StatelessWidget {
+  const _SetupBlockerNotice();
 
-    Navigator.of(context).pop(
-      Trip(
-        code: 'DEMO-${DateTime.now().millisecondsSinceEpoch % 10000}',
-        vehicle: _vehicle.text.trim(),
-        route: '${_origin.text.trim()} → ${_destination.text.trim()}',
-        material: _material.text.trim(),
-        status: 'Dispatched · demo',
-        progress: 0,
-        eta: 'Not connected',
+  @override
+  Widget build(BuildContext context) {
+    const color = Color(0xFFFF5C58);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.warning_amber_rounded, color: color, size: 17),
+          SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              'Some required setup is missing. Trips need these before they can be created.',
+              style: TextStyle(color: color, fontSize: 12, height: 1.45),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1066,7 +1396,11 @@ class TripCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = trip.status.startsWith('Loading') ? _amber : _green;
+    final color = switch (trip.status) {
+      'In transit' || 'Approaching' || 'Arrived' => _green,
+      'At origin' || 'Exception' => _amber,
+      _ => _blue,
+    };
 
     return Card(
       child: Padding(

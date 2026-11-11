@@ -3,6 +3,104 @@ import 'package:dumptrak_mobile_prototype/main.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets('alert sections fit a narrow phone with larger text',
+      (tester) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+      tester.platformDispatcher.clearTextScaleFactorTestValue();
+    });
+    await tester.pumpWidget(const DumptrakPrototypeApp());
+    await tester.tap(find.text('Alerts').last);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    for (final section in [
+      'History',
+      'Earlier detections',
+      'Informational records'
+    ]) {
+      final chip = find.byKey(ValueKey('alert-section-$section'));
+      await Scrollable.ensureVisible(tester.element(chip), alignment: 0.5);
+      await tester.pumpAndSettle();
+      await tester.tap(chip);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+    }
+  });
+
+  testWidgets('alert kind filter narrows sample situations and resets',
+      (tester) async {
+    await tester.pumpWidget(const DumptrakPrototypeApp());
+    await tester.tap(find.text('Alerts').last);
+    await tester.pumpAndSettle();
+
+    final filter = find.byKey(const ValueKey('situation-kind-filter'));
+    await tester.tap(filter);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Tracking').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Vehicle reporting gap'), findsOneWidget);
+    expect(find.text('Delivery confirmation needed'), findsNothing);
+
+    await tester.tap(filter);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Compliance').last);
+    await tester.pumpAndSettle();
+    expect(find.text('No situations match this kind'), findsOneWidget);
+
+    await tester.tap(filter);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('All kinds').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Vehicle reporting gap'), findsOneWidget);
+    expect(find.text('Delivery confirmation needed'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('alert sections show history filters and expandable guidance',
+      (tester) async {
+    await tester.pumpWidget(const DumptrakPrototypeApp());
+    await tester.tap(find.text('Alerts').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('alert-section-History')));
+    await tester.pumpAndSettle();
+
+    final filter = find.byKey(const ValueKey('history-outcome-filter'));
+    await tester.tap(filter);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Closed by a person').last);
+    await tester.pumpAndSettle();
+    await Scrollable.ensureVisible(
+      tester.element(find.text('More about how it left the queue')),
+      alignment: 0.5,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('More about how it left the queue'));
+    await tester.pumpAndSettle();
+    expect(
+        find.textContaining('Superseded situations concerned'), findsOneWidget);
+    expect(find.text('Nothing recorded for "Closed by a person".'),
+        findsOneWidget);
+
+    for (final section in ['Earlier detections', 'Informational records']) {
+      await Scrollable.ensureVisible(
+        tester.element(find.byKey(ValueKey('alert-section-$section'))),
+        alignment: 0.5,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(ValueKey('alert-section-$section')));
+      await tester.pumpAndSettle();
+      expect(find.text('Nothing recorded here.'), findsOneWidget);
+      expect(find.text('0 records'), findsOneWidget);
+      expect(
+          find.byKey(const ValueKey('history-outcome-filter')), findsNothing);
+    }
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('shows the mobile operations overview', (tester) async {
     await tester.pumpWidget(const DumptrakPrototypeApp());
 
@@ -11,23 +109,57 @@ void main() {
     expect(find.text('ACTIVE TRIPS'), findsOneWidget);
   });
 
-  testWidgets('adds a local demo trip from the trip form', (tester) async {
+  testWidgets('blocks trip creation until required setup is complete',
+      (tester) async {
     await tester.pumpWidget(const DumptrakPrototypeApp());
 
     await tester.tap(find.text('Trips').last);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Create trip'));
+    await tester.tap(find.text('New trip'));
     await tester.pumpAndSettle();
 
-    final fields = find.byType(TextFormField);
-    await tester.enterText(fields.at(0), 'DT-21');
-    await tester.enterText(fields.at(1), 'Yard');
-    await tester.enterText(fields.at(2), 'Site');
-    await tester.enterText(fields.at(3), 'Granite');
-    await tester.tap(find.text('Add demo trip'));
+    expect(find.text('Before you can create a trip'), findsOneWidget);
+    expect(find.text('Project (required)'), findsOneWidget);
+    expect(find.text('Site (required)'), findsOneWidget);
+    expect(find.text('Driver (recommended)'), findsOneWidget);
+    expect(
+      find.textContaining('Some required setup is missing.'),
+      findsOneWidget,
+    );
+    await tester.scrollUntilVisible(
+      find.text('Telemetry device (recommended)'),
+      250,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(find.text('Telemetry device (recommended)'), findsOneWidget);
+    expect(find.text('Add demo trip'), findsNothing);
+
+    await tester.tap(find.text('Close'));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Yard → Site'), findsOneWidget);
-    expect(find.textContaining('DT-21'), findsOneWidget);
+    expect(find.text('2 trips'), findsOneWidget);
+    expect(find.textContaining('DEMO-'), findsNothing);
+  });
+
+  testWidgets('filters trips by status and shows a useful empty state',
+      (tester) async {
+    await tester.pumpWidget(const DumptrakPrototypeApp());
+
+    await tester.tap(find.text('Trips').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('trip-status-filter')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Completed').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('No trips in this status'), findsOneWidget);
+    expect(find.textContaining('TR-2048'), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('trip-status-filter')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('All statuses').last);
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('TR-2048'), findsOneWidget);
   });
 }

@@ -7,13 +7,18 @@ backend, map provider, telemetry, identity provider, or settlement services.
 ## Prototype screens
 
 - **Home:** operational metrics, sample alerts, active trips, and a fleet insight.
-- **Trips:** sample trip cards and a local-only create-trip interaction.
+- **Trips:** sample trip cards, status filters, and a setup-blocker sheet for
+  project/site prerequisites and recommended trip records.
 - **Map:** illustrative route and vehicle markers, explicitly marked as not live.
-- **Alerts:** sample action-needed situations and informational records.
+- **Alerts:** four selectable sections (Needs action, Earlier detections,
+  History, and Informational records), an optional situation-kind filter,
+  history outcome filtering, and expandable closure guidance. Needs action
+  contains two sample situations; the other sections have no sample records.
 - **More:** Compliance & documents, Reports, Intelligence, Settlement, and FleetOps.
 
-All records are illustrative. Creating a trip only adds a sample record in the
-running app; it does not dispatch a vehicle or save data to a server. Real
+All records are illustrative. Trip creation is blocked in this prototype to
+reflect the required project and site setup; the sheet explains the
+recommended driver, vehicle, telemetry device, and material records. Real
 authentication, tenant permissions, APIs, telemetry, push notifications, and
 offline behavior should be integrated only after the existing source or API
 documentation is available.
