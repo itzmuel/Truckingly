@@ -14,7 +14,25 @@ backend, map provider, telemetry, identity provider, or settlement services.
   History, and Informational records), an optional situation-kind filter,
   history outcome filtering, and expandable closure guidance. Needs action
   contains two sample situations; the other sections have no sample records.
+- **Reports:** mobile Customer visits layout with inclusive date pickers,
+  required asset scope, empty-sample metrics, daily counts, customer-site and
+  visits empty states, and data provenance. Defaults to the previous calendar
+  month in the displayed Africa/Lagos reporting context. Other report sections,
+  map integration, and Excel exports are explicitly not connected.
 - **More:** Compliance & documents, Reports, Intelligence, Settlement, and FleetOps.
+- **Intelligence:** mobile workspace with a required sample period selector
+  (7, 30, or 90 days), fleet coverage, vehicle evaluation availability, analytic
+  findings, provisional-threshold guidance, and navigation to actionable alerts.
+  Retry explicitly reports that no API is configured; no live request is made.
+- **Settlement:** Work Offers demo warning, sample completion-evidence queue
+  counts, administrator setup guidance, and GEUTech linking explanation.
+- **FleetOps:** last-24-hours movement layout with an explicit unavailable-data
+  state and GEUTech linking guidance. Both linking buttons open an explanatory
+  dialog only; no credentials are requested and no accounts are linked.
+
+Android system Back (including the back gesture) closes dialogs and sheets
+first, returns More detail screens to More, and returns main tabs to Home.
+Back from Home allows the app to exit.
 
 All records are illustrative. Trip creation is blocked in this prototype to
 reflect the required project and site setup; the sheet explains the

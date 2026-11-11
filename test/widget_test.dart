@@ -3,6 +3,58 @@ import 'package:dumptrak_mobile_prototype/main.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets('system back returns main tabs to Home and allows exit at Home',
+      (tester) async {
+    await tester.pumpWidget(const DumptrakPrototypeApp());
+
+    for (final tab in ['Trips', 'Map', 'Alerts', 'More']) {
+      await tester.tap(find.text(tab).last);
+      await tester.pumpAndSettle();
+      expect(tester.widget<PopScope<void>>(find.byType(PopScope<void>)).canPop,
+          isFalse);
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.text('Operations overview'), findsOneWidget);
+      expect(tester.widget<PopScope<void>>(find.byType(PopScope<void>)).canPop,
+          isTrue);
+    }
+  });
+
+  testWidgets('system back closes trip setup before leaving Trips',
+      (tester) async {
+    await tester.pumpWidget(const DumptrakPrototypeApp());
+    await tester.tap(find.text('Trips').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('New trip'));
+    await tester.pumpAndSettle();
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.text('Before you can create a trip'), findsNothing);
+    expect(find.text('New trip'), findsOneWidget);
+    expect(find.text('Operations overview'), findsNothing);
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.text('Operations overview'), findsOneWidget);
+  });
+
+  for (final page in ['Compliance & documents', 'Reports', 'Intelligence']) {
+    testWidgets('system back returns $page to More', (tester) async {
+      await tester.pumpWidget(const DumptrakPrototypeApp());
+      await tester.tap(find.text('More').last);
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(find.text(page), 200);
+      await tester.tap(find.text(page));
+      await tester.pumpAndSettle();
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.text('Tools and account'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets('alert sections fit a narrow phone with larger text',
       (tester) async {
     tester.view.physicalSize = const Size(360, 800);
