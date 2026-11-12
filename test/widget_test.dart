@@ -20,7 +20,7 @@ void main() {
     }
   });
 
-  testWidgets('system back closes trip setup before leaving Trips',
+  testWidgets('system back closes trip wizard before leaving Trips',
       (tester) async {
     await tester.pumpWidget(const DumptrakPrototypeApp());
     await tester.tap(find.text('Trips').last);
@@ -30,7 +30,7 @@ void main() {
 
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
-    expect(find.text('Before you can create a trip'), findsNothing);
+    expect(find.text('New demo trip'), findsNothing);
     expect(find.byTooltip('New trip'), findsOneWidget);
     expect(find.text('Operations overview'), findsNothing);
 
@@ -165,7 +165,7 @@ void main() {
     expect(find.text('ACTIVE TRIPS'), findsOneWidget);
   });
 
-  testWidgets('blocks trip creation until required setup is complete',
+  testWidgets('demo wizard requires selections and can be cancelled',
       (tester) async {
     await tester.pumpWidget(const DumptrakPrototypeApp());
 
@@ -174,23 +174,16 @@ void main() {
     await tester.tap(find.byTooltip('New trip'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Before you can create a trip'), findsOneWidget);
+    expect(find.text('New demo trip'), findsOneWidget);
     expect(find.text('Project (required)'), findsOneWidget);
-    expect(find.text('Site (required)'), findsOneWidget);
-    expect(find.text('Driver (recommended)'), findsOneWidget);
-    expect(
-      find.textContaining('Some required setup is missing.'),
-      findsOneWidget,
-    );
-    await tester.scrollUntilVisible(
-      find.text('Telemetry device (recommended)'),
-      250,
-      scrollable: find.byType(Scrollable).last,
-    );
-    expect(find.text('Telemetry device (recommended)'), findsOneWidget);
-    expect(find.text('Add demo trip'), findsNothing);
-
-    await tester.tap(find.text('Close'));
+    expect(find.text('Origin (required)'), findsOneWidget);
+    expect(find.text('Destination (required)'), findsOneWidget);
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+    expect(find.text('Choose a sample project.'), findsOneWidget);
+    expect(find.text('Choose a sample origin.'), findsOneWidget);
+    expect(find.text('Choose a sample destination.'), findsOneWidget);
+    await tester.tap(find.byTooltip('Close wizard'));
     await tester.pumpAndSettle();
 
     expect(find.text('2 trips'), findsOneWidget);

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
+import 'demo_store.dart';
 import 'reports_page.dart';
+import 'trip_wizard.dart';
+import 'trip_details.dart';
 
 const _blue = Color(0xFF0088FF);
 const _background = Color(0xFF080A0B);
@@ -12,8 +15,137 @@ const _green = Color(0xFF22C55E);
 const _amber = Color(0xFFFFAA00);
 
 void main() {
-  runApp(const DumptrakPrototypeApp());
+  runApp(const DemoStartup());
 }
+
+class DemoStartup extends StatefulWidget {
+  const DemoStartup({super.key, this.persistence});
+
+  final DemoPersistence? persistence;
+
+  @override
+  State<DemoStartup> createState() => _DemoStartupState();
+}
+
+class _DemoStartupState extends State<DemoStartup> {
+  late final DemoPersistence _persistence =
+      widget.persistence ?? LocalDemoPersistence();
+  DemoStore? _store;
+  String? _error;
+  bool _busy = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load({bool restore = false}) async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final store = restore
+          ? await DemoStore.restore(_persistence)
+          : await DemoStore.load(_persistence);
+      if (!mounted) {
+        store.dispose();
+        return;
+      }
+      setState(() => _store = store);
+    } on Exception catch (error) {
+      if (mounted) setState(() => _error = error.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _store?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_store != null) return DumptrakPrototypeApp(store: _store);
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData.dark(useMaterial3: true),
+      home: Scaffold(
+        body: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: _busy
+                  ? const Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CircularProgressIndicator(),
+                        SizedBox(height: 16),
+                        Text('Loading saved demo…'),
+                      ],
+                    )
+                  : Builder(
+                      builder: (context) => Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text('Saved demo could not be loaded',
+                              style: TextStyle(
+                                  fontSize: 22, fontWeight: FontWeight.w700)),
+                          const SizedBox(height: 12),
+                          Text(_error ?? 'Local storage is unavailable.'),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'Your saved demo has not been replaced. Retry, or explicitly restore the sample data.',
+                          ),
+                          const SizedBox(height: 16),
+                          FilledButton(
+                            onPressed: _load,
+                            child: const Text('Retry loading'),
+                          ),
+                          TextButton(
+                            onPressed: () async {
+                              final reset = await _confirmDemoReset(context);
+                              if (reset && mounted) {
+                                await _load(restore: true);
+                              }
+                            },
+                            child: const Text('Restore sample data'),
+                          ),
+                        ],
+                      ),
+                    ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+Future<bool> _confirmDemoReset(BuildContext context) async =>
+    await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reset simulated data?'),
+        content: const Text(
+          'This replaces all saved demo changes on this device with the original sample records. No production data is affected.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Reset Demo'),
+          ),
+        ],
+      ),
+    ) ??
+    false;
 
 class _NavItem {
   const _NavItem(this.label, this.icon);
@@ -39,7 +171,9 @@ class _SectionPreview {
 }
 
 class DumptrakPrototypeApp extends StatelessWidget {
-  const DumptrakPrototypeApp({super.key});
+  const DumptrakPrototypeApp({super.key, this.store});
+
+  final DemoStore? store;
 
   @override
   Widget build(BuildContext context) {
@@ -106,13 +240,15 @@ class DumptrakPrototypeApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const OperationsShell(),
+      home: OperationsShell(store: store),
     );
   }
 }
 
 class OperationsShell extends StatefulWidget {
-  const OperationsShell({super.key});
+  const OperationsShell({super.key, this.store});
+
+  final DemoStore? store;
 
   @override
   State<OperationsShell> createState() => _OperationsShellState();
@@ -126,6 +262,26 @@ class _OperationsShellState extends State<OperationsShell> {
   String _situationKind = 'All kinds';
   String _historyOutcome = 'All closed situations';
   int _intelligenceDays = 30;
+  late final DemoStore _demo = widget.store ?? DemoStore.memory();
+
+  @override
+  void initState() {
+    super.initState();
+    _demo.addListener(_refreshDemo);
+  }
+
+  void _refreshDemo() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _demo.removeListener(_refreshDemo);
+    if (widget.store == null) _demo.dispose();
+    super.dispose();
+  }
+
+  List<Trip> get _trips => _demo.trips;
 
   static const _alertSections = [
     'Needs action',
@@ -153,44 +309,6 @@ class _OperationsShellState extends State<OperationsShell> {
     'Cleared by new evidence',
     'Closed earlier, way not recorded',
   ];
-  static const _sampleAlerts = [
-    _SampleAlert(
-      kind: 'Tracking',
-      title: 'Vehicle reporting gap',
-      detail: 'DT-03 · Last report 42 minutes ago · Current trip TR-2045',
-      severity: 'Warning',
-      icon: Icons.cell_tower_rounded,
-    ),
-    _SampleAlert(
-      kind: 'Delivered quantity',
-      title: 'Delivery confirmation needed',
-      detail: 'TR-2046 · Waiting for a supervisor to confirm delivered tonnes',
-      severity: 'Action',
-      icon: Icons.fact_check_outlined,
-    ),
-  ];
-
-  final List<Trip> _trips = [
-    const Trip(
-      code: 'TR-2048',
-      vehicle: 'DT-07',
-      route: 'Ikeja Quarry → Lekki Site',
-      material: 'Granite aggregate',
-      status: 'In transit',
-      progress: 0.64,
-      eta: 'ETA 10:45 AM',
-    ),
-    const Trip(
-      code: 'TR-2047',
-      vehicle: 'DT-12',
-      route: 'Ogun Yard → Apapa Terminal',
-      material: 'Laterite',
-      status: 'At origin',
-      progress: 0.18,
-      eta: 'Started 9:12 AM',
-    ),
-  ];
-
   static const _tabs = <_NavItem>[
     _NavItem('Home', Icons.grid_view_rounded),
     _NavItem('Trips', Icons.alt_route_rounded),
@@ -201,15 +319,7 @@ class _OperationsShellState extends State<OperationsShell> {
 
   static const _tripStatuses = [
     'All statuses',
-    'Planned',
-    'Dispatched',
-    'At origin',
-    'In transit',
-    'Approaching',
-    'Arrived',
-    'Completed',
-    'Exception',
-    'Cancelled',
+    ...Trip.statuses,
   ];
 
   List<Trip> get _visibleTrips {
@@ -338,15 +448,15 @@ class _OperationsShellState extends State<OperationsShell> {
           Expanded(
             child: MetricCard(
               label: 'ACTIVE TRIPS',
-              value: '${_trips.length}',
+              value: '${_demo.activeTrips.length}',
               icon: Icons.route_rounded,
             ),
           ),
           const SizedBox(width: 12),
-          const Expanded(
+          Expanded(
             child: MetricCard(
               label: 'IN TRANSIT',
-              value: '1',
+              value: '${_demo.inTransit}',
               icon: Icons.local_shipping_outlined,
               accent: _blue,
             ),
@@ -354,21 +464,21 @@ class _OperationsShellState extends State<OperationsShell> {
         ],
       ),
       const SizedBox(height: 12),
-      const Row(
+      Row(
         children: [
           Expanded(
             child: MetricCard(
               label: 'COMPLETED TODAY',
-              value: '8',
+              value: '${_demo.completedOn(DateTime.now())}',
               icon: Icons.task_alt_rounded,
               accent: _green,
             ),
           ),
-          SizedBox(width: 12),
+          const SizedBox(width: 12),
           Expanded(
             child: MetricCard(
               label: 'NEEDS ACTION',
-              value: '2',
+              value: '${_demo.alerts.length}',
               icon: Icons.warning_amber_rounded,
               accent: _amber,
             ),
@@ -384,19 +494,15 @@ class _OperationsShellState extends State<OperationsShell> {
         ),
       ),
       const SizedBox(height: 10),
-      const AlertCard(
-        title: 'Vehicle reporting gap',
-        detail: 'DT-03 has not reported for 42 minutes.',
-        severity: 'Warning',
-        icon: Icons.cell_tower_rounded,
-      ),
-      const SizedBox(height: 10),
-      const AlertCard(
-        title: 'Delivery confirmation needed',
-        detail: 'TR-2046 is awaiting a site delivery check.',
-        severity: 'Action',
-        icon: Icons.fact_check_outlined,
-      ),
+      for (final alert in _demo.alerts) ...[
+        AlertCard(
+          title: alert.title,
+          detail: alert.detail,
+          severity: alert.severity,
+          icon: _alertIcon(alert),
+        ),
+        const SizedBox(height: 10),
+      ],
       const SizedBox(height: 24),
       SectionHeading(
         title: 'Active trips',
@@ -406,8 +512,14 @@ class _OperationsShellState extends State<OperationsShell> {
         ),
       ),
       const SizedBox(height: 10),
-      for (final trip in _trips.take(2)) ...[
-        TripCard(trip: trip),
+      if (_demo.activeTrips.isEmpty)
+        const EmptyState(
+          icon: Icons.task_alt_rounded,
+          title: 'No active demo trips',
+          detail: 'All simulated trips have ended. Reset Demo to start again.',
+        ),
+      for (final trip in _demo.activeTrips.take(2)) ...[
+        TripCard(trip: trip, onTap: () => _openTrip(trip.code)),
         const SizedBox(height: 10),
       ],
       const SizedBox(height: 12),
@@ -428,7 +540,7 @@ class _OperationsShellState extends State<OperationsShell> {
                 SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    '4 of 12 vehicles have a completed evaluation.',
+                    'Vehicle evaluations are not connected in this demo.',
                     style: TextStyle(fontSize: 14),
                   ),
                 ),
@@ -497,7 +609,7 @@ class _OperationsShellState extends State<OperationsShell> {
       ),
       const SizedBox(height: 16),
       SectionHeading(
-        title: 'ACTIVE OPERATIONS (${visibleTrips.length})',
+        title: 'DEMO TRIPS (${visibleTrips.length})',
         action: TextButton(
           onPressed: () => setState(() => _selectedTripStatus = 'Completed'),
           child: const Text('View Archive'),
@@ -515,12 +627,16 @@ class _OperationsShellState extends State<OperationsShell> {
         )
       else
         for (final trip in visibleTrips) ...[
-          TripCard(trip: trip, showProgress: true),
+          TripCard(
+            trip: trip,
+            showProgress: true,
+            onTap: () => _openTrip(trip.code),
+          ),
           const SizedBox(height: 12),
         ],
       const SizedBox(height: 4),
       const Text(
-        'Sample data only. Changes are not persisted.\nCloud synchronization is not connected.',
+        'Sample data only. Demo changes are saved on this device.\nCloud synchronization is not connected.',
         textAlign: TextAlign.center,
         style: TextStyle(color: _muted, fontSize: 11, height: 1.5),
       ),
@@ -543,7 +659,7 @@ class _OperationsShellState extends State<OperationsShell> {
   }
 
   Widget _alertsPage() {
-    final visibleAlerts = _sampleAlerts
+    final visibleAlerts = _demo.alerts
         .where((alert) =>
             _situationKind == 'All kinds' || alert.kind == _situationKind)
         .toList();
@@ -574,7 +690,7 @@ class _OperationsShellState extends State<OperationsShell> {
               key: ValueKey('alert-section-$section'),
               showCheckmark: false,
               label: Text(switch (section) {
-                'Needs action' => 'Needs Action (2)',
+                'Needs action' => 'Needs Action (${_demo.alerts.length})',
                 'Earlier detections' => 'Recent Detections',
                 'History' => 'System History',
                 _ => 'Info Records',
@@ -654,7 +770,9 @@ class _OperationsShellState extends State<OperationsShell> {
                   title: alert.title,
                   detail: alert.detail,
                   severity: alert.severity,
-                  icon: alert.icon,
+                  icon: _alertIcon(alert),
+                  reference:
+                      '${_trips.firstWhere((trip) => trip.code == alert.tripCode).vehicle} · ${alert.tripCode}',
                   expanded: true,
                   onAction: (action) => _showUnavailableAction(action),
                 ),
@@ -742,6 +860,90 @@ class _OperationsShellState extends State<OperationsShell> {
         content: Text(
           '$action is not connected in this prototype. No operational change was made.',
         ),
+      ),
+    );
+  }
+
+  IconData _alertIcon(DemoAlert alert) => alert.kind == 'Tracking'
+      ? Icons.cell_tower_rounded
+      : Icons.fact_check_outlined;
+
+  Future<void> _saveDemo(Future<void> Function() action, String success) async {
+    try {
+      await action();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(success)),
+      );
+    } on Exception catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          duration: const Duration(seconds: 10),
+          content: Text(
+            'Demo could not be saved: $error. No changes were applied. Please retry.',
+          ),
+        ),
+      );
+    }
+  }
+
+  Widget _demoControls() {
+    return PanelCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SectionHeading(title: 'Demo controls'),
+          const SizedBox(height: 10),
+          const Text(
+            'SIMULATED DATA ONLY\nAdvance every eligible trip by one stage. '
+            'Changes are saved on this device only. Alerts remain open until '
+            'explicitly resolved; completing a trip does not clear a vehicle issue.',
+            style: TextStyle(color: _muted, fontSize: 12, height: 1.6),
+          ),
+          const SizedBox(height: 12),
+          for (final trip in _trips)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text('${trip.code} · ${trip.status}',
+                  style: const TextStyle(fontSize: 12)),
+            ),
+          if (_demo.saving) const LinearProgressIndicator(),
+          const SizedBox(height: 8),
+          FilledButton.icon(
+            key: const ValueKey('advance-demo'),
+            onPressed: _demo.saving || !_demo.canAdvance
+                ? null
+                : () => _saveDemo(
+                      () => _demo.advance(DateTime.now()),
+                      'Simulated trips advanced and saved on this device.',
+                    ),
+            icon: const Icon(Icons.skip_next_rounded),
+            label: const Text('Advance demo one step'),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            key: const ValueKey('reset-demo'),
+            onPressed: _demo.saving
+                ? null
+                : () async {
+                    if (!await _confirmDemoReset(context) || !mounted) return;
+                    await _saveDemo(() async {
+                      await _demo.reset();
+                      if (!mounted) return;
+                      setState(() {
+                        _selectedTripStatus = 'All statuses';
+                        _alertSection = 'Needs action';
+                        _situationKind = 'All kinds';
+                        _historyOutcome = 'All closed situations';
+                        _intelligenceDays = 30;
+                      });
+                    }, 'Original demo data restored and saved.');
+                  },
+            icon: const Icon(Icons.restart_alt_rounded),
+            label: const Text('Reset Demo'),
+          ),
+        ],
       ),
     );
   }
@@ -854,6 +1056,8 @@ class _OperationsShellState extends State<OperationsShell> {
           ],
         ),
       ),
+      const SizedBox(height: 20),
+      _demoControls(),
     ]);
   }
 
@@ -862,6 +1066,8 @@ class _OperationsShellState extends State<OperationsShell> {
     if (title == 'Reports') {
       return ReportsPage(
         onBack: () => setState(() => _morePage = null),
+        trips: _demo.trips,
+        openAlerts: _demo.alerts.length,
       );
     }
     if (title == 'Intelligence') return _intelligencePage();
@@ -1298,258 +1504,23 @@ class _OperationsShellState extends State<OperationsShell> {
   }
 
   Future<void> _showCreateTrip() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: _surface,
-      showDragHandle: true,
-      builder: (context) => const TripSetupSheet(),
-    );
-  }
-}
-
-class _SampleAlert {
-  const _SampleAlert({
-    required this.kind,
-    required this.title,
-    required this.detail,
-    required this.severity,
-    required this.icon,
-  });
-
-  final String kind;
-  final String title;
-  final String detail;
-  final String severity;
-  final IconData icon;
-}
-
-class Trip {
-  const Trip({
-    required this.code,
-    required this.vehicle,
-    required this.route,
-    required this.material,
-    required this.status,
-    required this.progress,
-    required this.eta,
-  });
-
-  final String code;
-  final String vehicle;
-  final String route;
-  final String material;
-  final String status;
-  final double progress;
-  final String eta;
-}
-
-class TripSetupSheet extends StatelessWidget {
-  const TripSetupSheet({super.key});
-
-  static const _requirements = [
-    _TripSetupRequirement(
-      name: 'Project',
-      isRequired: true,
-      description:
-          'Every trip belongs to a project. Assign a customer to it for portal visibility.',
-    ),
-    _TripSetupRequirement(
-      name: 'Site',
-      isRequired: true,
-      description:
-          'Add at least one site with coordinates and geofence radii. Destinations are chosen per trip.',
-    ),
-    _TripSetupRequirement(
-      name: 'Driver',
-      isRequired: false,
-      description: 'Needed for a complete chain-of-custody record.',
-    ),
-    _TripSetupRequirement(
-      name: 'Vehicle',
-      isRequired: false,
-      description: 'Needed for a complete chain-of-custody record.',
-    ),
-    _TripSetupRequirement(
-      name: 'Telemetry device',
-      isRequired: false,
-      description:
-          'Required for live GPS tracking and automatic geofence detection.',
-    ),
-    _TripSetupRequirement(
-      name: 'Material',
-      isRequired: false,
-      description:
-          'Defines what is being hauled; load quantity is entered per trip.',
-    ),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: FractionallySizedBox(
-        heightFactor: 0.88,
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 4, 12, 14),
-              child: Row(
-                children: [
-                  const Icon(Icons.warning_amber_rounded, color: _amber),
-                  const SizedBox(width: 10),
-                  const Expanded(
-                    child: Text(
-                      'Before you can create a trip',
-                      style:
-                          TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: 'Close',
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close_rounded),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-                children: [
-                  const _SetupBlockerNotice(),
-                  const SizedBox(height: 12),
-                  for (final requirement in _requirements)
-                    _TripSetupRequirementTile(requirement: requirement),
-                  const SizedBox(height: 8),
-                  const Divider(color: _border),
-                  const SizedBox(height: 10),
-                  const Text(
-                    'Ask your administrator to finish the required project and site setup. Recommended records can be added to improve trip tracking and chain-of-custody.',
-                    style: TextStyle(color: _muted, fontSize: 12, height: 1.5),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
-              child: OutlinedButton(
-                onPressed: () => Navigator.of(context).pop(),
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(48),
-                ),
-                child: const Text('Close'),
-              ),
-            ),
-          ],
-        ),
+    final trip = await Navigator.of(context).push<Trip>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (context) => TripWizard(store: _demo),
       ),
     );
-  }
-}
-
-class _TripSetupRequirement {
-  const _TripSetupRequirement({
-    required this.name,
-    required this.isRequired,
-    required this.description,
-  });
-
-  final String name;
-  final bool isRequired;
-  final String description;
-}
-
-class _TripSetupRequirementTile extends StatelessWidget {
-  const _TripSetupRequirementTile({required this.requirement});
-
-  final _TripSetupRequirement requirement;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = requirement.isRequired ? const Color(0xFFFF5C58) : _amber;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: _border)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 2),
-            child: Icon(Icons.circle_outlined, size: 14, color: color),
-          ),
-          const SizedBox(width: 9),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${requirement.name}${requirement.isRequired ? ' (required)' : ' (recommended)'}',
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  requirement.description,
-                  style: const TextStyle(
-                    color: _muted,
-                    fontSize: 12,
-                    height: 1.45,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          const Padding(
-            padding: EdgeInsets.only(top: 2),
-            child: Text(
-              'Ask your admin',
-              style: TextStyle(
-                color: _muted,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
+    if (trip == null || !mounted) return;
+    setState(() => _selectedTripStatus = 'All statuses');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${trip.code} created as Planned. Demo saved locally.')),
     );
   }
-}
 
-class _SetupBlockerNotice extends StatelessWidget {
-  const _SetupBlockerNotice();
-
-  @override
-  Widget build(BuildContext context) {
-    const color = Color(0xFFFF5C58);
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        border: Border.all(color: color.withValues(alpha: 0.5)),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: const Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(Icons.warning_amber_rounded, color: color, size: 17),
-          SizedBox(width: 9),
-          Expanded(
-            child: Text(
-              'Some required setup is missing. Trips need these before they can be created.',
-              style: TextStyle(color: color, fontSize: 12, height: 1.45),
-            ),
-          ),
-        ],
+  void _openTrip(String code) {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (context) => TripDetails(store: _demo, code: code),
       ),
     );
   }
@@ -1735,6 +1706,7 @@ class AlertCard extends StatelessWidget {
     required this.icon,
     this.expanded = false,
     this.onAction,
+    this.reference,
   });
 
   final String title;
@@ -1743,6 +1715,7 @@ class AlertCard extends StatelessWidget {
   final IconData icon;
   final bool expanded;
   final ValueChanged<String>? onAction;
+  final String? reference;
 
   @override
   Widget build(BuildContext context) {
@@ -1776,9 +1749,7 @@ class AlertCard extends StatelessWidget {
                       const SizedBox(height: 5),
                       Text(
                         expanded
-                            ? (severity == 'Warning'
-                                ? 'ASSET DT-03'
-                                : 'TRIP TR-2046')
+                            ? (reference ?? 'SIMULATED INCIDENT')
                             : detail,
                         style: TextStyle(
                           color: _muted,
@@ -1820,10 +1791,16 @@ class AlertCard extends StatelessWidget {
 }
 
 class TripCard extends StatelessWidget {
-  const TripCard({super.key, required this.trip, this.showProgress = false});
+  const TripCard({
+    super.key,
+    required this.trip,
+    this.showProgress = false,
+    this.onTap,
+  });
 
   final Trip trip;
   final bool showProgress;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -1843,6 +1820,8 @@ class TripCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(showProgress ? 22 : 14),
         side: const BorderSide(color: _border),
       ),
+      child: InkWell(
+        onTap: onTap,
       child: Column(
         children: [
           Padding(
@@ -1865,6 +1844,14 @@ class TripCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 if (showProgress) ...[
+                  if (trip.project != null) ...[
+                    Text('Project: ${trip.project}',
+                        style: const TextStyle(color: _muted, fontSize: 12)),
+                    const SizedBox(height: 8),
+                    Text('Driver: ${trip.driver}',
+                        style: const TextStyle(color: _muted, fontSize: 12)),
+                    const SizedBox(height: 14),
+                  ],
                   _TripStop(label: 'ORIGIN', name: stops.first, color: color),
                   const SizedBox(height: 14),
                   _TripStop(
@@ -1946,6 +1933,7 @@ class TripCard extends StatelessWidget {
               color: color,
             ),
         ],
+      ),
       ),
     );
   }

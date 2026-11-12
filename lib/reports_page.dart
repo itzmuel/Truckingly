@@ -1,9 +1,18 @@
 import 'package:flutter/material.dart';
 
+import 'demo_store.dart';
+
 class ReportsPage extends StatefulWidget {
-  const ReportsPage({super.key, required this.onBack});
+  const ReportsPage({
+    super.key,
+    required this.onBack,
+    this.trips = const [],
+    this.openAlerts = 0,
+  });
 
   final VoidCallback onBack;
+  final List<Trip> trips;
+  final int openAlerts;
 
   @override
   State<ReportsPage> createState() => _ReportsPageState();
@@ -83,7 +92,8 @@ class _ReportsPageState extends State<ReportsPage> {
                 ChoiceChip(
                   key: ValueKey('report-section-$section'),
                   label: ConstrainedBox(
-                    constraints: BoxConstraints(maxWidth: constraints.maxWidth - 72),
+                    constraints:
+                        BoxConstraints(maxWidth: constraints.maxWidth - 72),
                     child: Text(section),
                   ),
                   selected: section == _section,
@@ -101,6 +111,38 @@ class _ReportsPageState extends State<ReportsPage> {
           ),
         ),
         const SizedBox(height: 16),
+        if (widget.trips.isNotEmpty) ...[
+          _panel(
+            'Shared demo operations',
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Active trips: ${widget.trips.where((trip) => trip.isActive).length}',
+                  key: const ValueKey('report-active-trips'),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'In transit: ${widget.trips.where((trip) => trip.status == 'In transit').length}',
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Completed trips: ${widget.trips.where((trip) => trip.status == 'Completed').length}',
+                  key: const ValueKey('report-completed-trips'),
+                ),
+                const SizedBox(height: 8),
+                Text('Open alerts: ${widget.openAlerts}'),
+                const SizedBox(height: 12),
+                const Text(
+                  'SIMULATED DATA · All saved demo trips, independent of visit date filters. '
+                  'These are trip counts, not geofence visits or verified deliveries.',
+                  style: TextStyle(fontSize: 12, height: 1.5),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
         if (_section != 'Customer visits')
           _panel(
             _section,
@@ -109,7 +151,8 @@ class _ReportsPageState extends State<ReportsPage> {
               'The existing application or API is needed to load these records.',
             ),
           )
-        else ..._customerVisits(),
+        else
+          ..._customerVisits(),
       ],
     );
   }
@@ -123,7 +166,11 @@ class _ReportsPageState extends State<ReportsPage> {
       ('Total dwell', '0 min', 'Completed visits only'),
       ('Average dwell', 'Unknown', 'No completed visit to average'),
       ('Open or incomplete', '0', '0 open · 0 incomplete'),
-      ('Assets affected by reporting gaps', '0', 'Sample count, not verified coverage'),
+      (
+        'Assets affected by reporting gaps',
+        '0',
+        'Sample count, not verified coverage'
+      ),
       ('On a trip / outside a trip', '0 / 0', 'Sample visits'),
     ];
 
@@ -153,7 +200,11 @@ class _ReportsPageState extends State<ReportsPage> {
                 if (constraints.maxWidth < 440) {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [controls[0], const SizedBox(height: 10), controls[1]],
+                    children: [
+                      controls[0],
+                      const SizedBox(height: 10),
+                      controls[1]
+                    ],
                   );
                 }
                 return Row(
@@ -226,9 +277,18 @@ class _ReportsPageState extends State<ReportsPage> {
       const SizedBox(height: 16),
       for (final summary in [
         ('Visits by site', 'No sample site was visited in this period.'),
-        ('Completed dwell by site', 'No completed sample dwell in this period.'),
-        ('Visits by customer', 'No sample visit was attributed to one customer.'),
-        ('Asset and site activity', 'No sample asset visited a site in this period.'),
+        (
+          'Completed dwell by site',
+          'No completed sample dwell in this period.'
+        ),
+        (
+          'Visits by customer',
+          'No sample visit was attributed to one customer.'
+        ),
+        (
+          'Asset and site activity',
+          'No sample asset visited a site in this period.'
+        ),
       ]) ...[
         _panel(summary.$1, Text(summary.$2)),
         const SizedBox(height: 12),
@@ -241,7 +301,8 @@ class _ReportsPageState extends State<ReportsPage> {
             const Text('Empty sample series · No live evidence'),
             const SizedBox(height: 12),
             Semantics(
-              label: 'Sample visits and completed visits are zero for each of the $_days selected days. Live evidence is unavailable.',
+              label:
+                  'Sample visits and completed visits are zero for each of the $_days selected days. Live evidence is unavailable.',
               child: SizedBox(
                 height: 130,
                 child: CustomPaint(
@@ -254,25 +315,33 @@ class _ReportsPageState extends State<ReportsPage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Expanded(child: Text(_date(_from), style: const TextStyle(fontSize: 11))),
+                Expanded(
+                    child: Text(_date(_from),
+                        style: const TextStyle(fontSize: 11))),
                 const SizedBox(width: 8),
-                Expanded(child: Text(_date(_to), textAlign: TextAlign.end, style: const TextStyle(fontSize: 11))),
+                Expanded(
+                    child: Text(_date(_to),
+                        textAlign: TextAlign.end,
+                        style: const TextStyle(fontSize: 11))),
               ],
             ),
             const SizedBox(height: 16),
             ExpansionTile(
               key: PageStorageKey('daily-visits-$_period'),
               tilePadding: EdgeInsets.zero,
-              title: Text('Daily sample counts · $_days ${_days == 1 ? 'day' : 'days'}'),
+              title: Text(
+                  'Daily sample counts · $_days ${_days == 1 ? 'day' : 'days'}'),
               children: [
-                const _DailyVisitRow(day: 'Day', visits: 'Visits', completed: 'Completed'),
+                const _DailyVisitRow(
+                    day: 'Day', visits: 'Visits', completed: 'Completed'),
                 SizedBox(
                   height: 220,
                   child: ListView.builder(
                     key: PageStorageKey('daily-rows-$_period'),
                     itemCount: _days,
                     itemBuilder: (context, index) => _DailyVisitRow(
-                      day: _date(DateTime.utc(_from.year, _from.month, _from.day + index)),
+                      day: _date(DateTime.utc(
+                          _from.year, _from.month, _from.day + index)),
                       visits: '0',
                       completed: '0',
                     ),
@@ -296,7 +365,8 @@ class _ReportsPageState extends State<ReportsPage> {
             children: [
               Icon(Icons.map_outlined, size: 36),
               SizedBox(height: 12),
-              Text('No customer-site map connected', textAlign: TextAlign.center),
+              Text('No customer-site map connected',
+                  textAlign: TextAlign.center),
               SizedBox(height: 8),
               Text(
                 'Real site coordinates and a map provider are needed. '
@@ -316,7 +386,8 @@ class _ReportsPageState extends State<ReportsPage> {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('What this report read, how complete it was, and what was not evaluated.'),
+            const Text(
+                'What this report read, how complete it was, and what was not evaluated.'),
             const SizedBox(height: 16),
             _fact('Period', _period),
             _fact('Time zone', 'Africa/Lagos'),
@@ -343,7 +414,8 @@ class _ReportsPageState extends State<ReportsPage> {
         key: const ValueKey('report-export'),
         onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Excel export is unavailable in this prototype. Connect the reporting API to download real reports.'),
+            content: Text(
+                'Excel export is unavailable in this prototype. Connect the reporting API to download real reports.'),
           ),
         ),
         child: const Padding(
@@ -424,9 +496,17 @@ class _DailyVisitRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Row(
         children: [
-          Expanded(flex: 2, child: Text(day, style: const TextStyle(fontSize: 12))),
-          Expanded(child: Text(visits, textAlign: TextAlign.end, style: const TextStyle(fontSize: 12))),
-          Expanded(flex: 2, child: Text(completed, textAlign: TextAlign.end, style: const TextStyle(fontSize: 12))),
+          Expanded(
+              flex: 2, child: Text(day, style: const TextStyle(fontSize: 12))),
+          Expanded(
+              child: Text(visits,
+                  textAlign: TextAlign.end,
+                  style: const TextStyle(fontSize: 12))),
+          Expanded(
+              flex: 2,
+              child: Text(completed,
+                  textAlign: TextAlign.end,
+                  style: const TextStyle(fontSize: 12))),
         ],
       ),
     );
@@ -444,13 +524,16 @@ class _EmptyVisitsPainter extends CustomPainter {
       ..color = color.withValues(alpha: 0.3)
       ..strokeWidth = 1;
     canvas.drawLine(Offset.zero, Offset(0, size.height - 8), axis);
-    canvas.drawLine(Offset(0, size.height - 8), Offset(size.width, size.height - 8), axis);
+    canvas.drawLine(
+        Offset(0, size.height - 8), Offset(size.width, size.height - 8), axis);
     final series = Paint()..color = color;
     for (var index = 0; index <= 12; index++) {
-      canvas.drawCircle(Offset(size.width * index / 12, size.height - 8), 3, series);
+      canvas.drawCircle(
+          Offset(size.width * index / 12, size.height - 8), 3, series);
     }
   }
 
   @override
-  bool shouldRepaint(covariant _EmptyVisitsPainter oldDelegate) => oldDelegate.color != color;
+  bool shouldRepaint(covariant _EmptyVisitsPainter oldDelegate) =>
+      oldDelegate.color != color;
 }
