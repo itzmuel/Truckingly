@@ -1,4 +1,4 @@
- import 'dart:convert';
+import 'dart:convert';
 
 import 'package:dumptrak_mobile_prototype/demo_director.dart';
 import 'package:dumptrak_mobile_prototype/demo_paths.dart';
@@ -62,6 +62,8 @@ Future<void> startGuidedRole(
   WidgetTester tester,
   String roleName, {
   DemoScenario scenario = DemoScenario.normal,
+  DemoPresentationMode mode = DemoPresentationMode.guided,
+  int presentationMinutes = 3,
 }) async {
   final launch = find.byKey(const ValueKey('open-stakeholder-walkthrough'));
   await reveal(tester, launch);
@@ -69,6 +71,24 @@ Future<void> startGuidedRole(
   await tester.pumpAndSettle();
   if (scenario != DemoScenario.normal) {
     await chooseScenario(tester, scenario);
+  }
+  if (mode != DemoPresentationMode.guided) {
+    final modeSelector = find.byKey(
+      ValueKey('presentation-mode-${DemoPresentationMode.guided.name}'),
+    );
+    await reveal(tester, modeSelector);
+    await tester.tap(modeSelector);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(mode.label).last);
+    await tester.pumpAndSettle();
+  }
+  if (mode == DemoPresentationMode.autoplay) {
+    final length = find.byKey(const ValueKey('presentation-length-5'));
+    await reveal(tester, length);
+    await tester.tap(length);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('$presentationMinutes minutes').last);
+    await tester.pumpAndSettle();
   }
   final role = find.byKey(const ValueKey('presentation-role-switcher'));
   await reveal(tester, role);
@@ -89,6 +109,38 @@ Future<void> advancePresentationStep(WidgetTester tester) async {
   await tester.tap(find.byKey(const ValueKey('presentation-next')));
   await tester.pumpAndSettle();
   await waitForPresentationActions(tester);
+}
+
+Future<void> advanceAutoplayStep(
+  WidgetTester tester, {
+  required int step,
+  required int totalSteps,
+  required String screen,
+}) async {
+  final countdownFinder = find.byKey(const ValueKey('presentation-countdown'));
+  if (countdownFinder.evaluate().isEmpty) {
+    final snackbars = tester
+        .widgetList<SnackBar>(find.byType(SnackBar))
+        .map((snackbar) => (snackbar.content as Text).data)
+        .join(' | ');
+    fail('Autoplay stopped before step ${step + 1}. $snackbars');
+  }
+  final countdown = tester.widget<Text>(countdownFinder).data!;
+  final time = countdown.split(':').map(int.parse).toList();
+  final remainingSeconds = time.length == 2 ? time[0] * 60 + time[1] : time[0];
+  await tester.pump(Duration(seconds: remainingSeconds));
+  final expectedStep =
+      'STEP ${step + 1} OF $totalSteps · ${screen.toUpperCase()}';
+  const completeKey = ValueKey('presentation-action-complete');
+  for (var attempt = 0; attempt < 240; attempt++) {
+    await tester.pump(const Duration(milliseconds: 100));
+    if (find.text(expectedStep).evaluate().isNotEmpty &&
+        find.byKey(completeKey).evaluate().isNotEmpty) {
+      await tester.pumpAndSettle();
+      return;
+    }
+  }
+  fail('Autoplay did not complete $expectedStep.');
 }
 
 void main() {
@@ -721,7 +773,8 @@ void main() {
     await tester.pumpAndSettle();
   });
 
-  testWidgets('Full Enterprise tour hands off one trip across every scenario',
+  testWidgets(
+      'Full Enterprise autoplay hands off one trip across every scenario',
       (tester) async {
     for (final scenario in DemoScenario.values) {
       final store = DemoStore.memory();
@@ -733,19 +786,25 @@ void main() {
         tester,
         'All Personnel',
         scenario: scenario,
+        mode: DemoPresentationMode.autoplay,
+        presentationMinutes: 8,
       );
       final route = DemoPathGenerator.generate(
         audience: DemoPathAudience.allPersonnel,
         scenario: scenario,
       );
       for (var index = 1; index < route.length; index++) {
-        try {
-          await advancePresentationStep(tester);
-        } catch (error) {
-          fail(
-            'Scenario ${scenario.name} stalled at '
-            '${route[index].role.label}: ${route[index].title}. $error',
-          );
+        await advanceAutoplayStep(
+          tester,
+          step: index,
+          totalSteps: route.length,
+          screen: route[index].screen,
+        );
+        if (scenario == DemoScenario.delayedDelivery &&
+            route[index].action == 'resolve-alert') {
+          expect(store.tripByCode('TR-2048').status, 'In transit');
+          expect(store.alertById('alert-delay-demo').isOpen, isFalse);
+          expect(store.visits, isEmpty);
         }
       }
 
@@ -770,9 +829,9 @@ void main() {
         expect(store.alertById('alert-incident-demo').isOpen, isFalse);
         expect(store.visits, isEmpty);
       }
-      expect(find.byKey(const ValueKey('finish-presentation')), findsOneWidget);
+      expect(find.byKey(const ValueKey('replay-presentation')), findsOneWidget);
       expect(tester.takeException(), isNull);
-      await tester.tap(find.byKey(const ValueKey('finish-presentation')));
+      await tester.tap(find.byKey(const ValueKey('stop-presentation')));
       await tester.pumpAndSettle();
     }
   });

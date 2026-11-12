@@ -70,11 +70,10 @@ scenario selector and walkthrough steps directly.
 and stop; Guided waits for the presenter to advance after each action; Explore
 loads the selected scenario and returns to the interactive app. The route
 preview lists the steps before starting. Select Administrator, Dispatcher,
-Driver, Supervisor, or All Personnel. The All Personnel tour coordinates a
-single trip and alert across Administrator oversight, Dispatcher coordination,
-Driver operations, and Supervisor resolution instead of concatenating four
-independent paths. The selected operational scenario changes which actions are
-safe and applicable.
+Driver, Supervisor, or All Personnel. The All Personnel tour begins with
+Dispatcher coordination, then hands off to the Driver and Supervisor, and
+finishes with the detailed Administrator workspace review. The selected
+operational scenario changes which actions are safe and applicable.
 
 The role paths use the existing app controls and saved demo operations:
 
@@ -95,12 +94,14 @@ The role paths use the existing app controls and saved demo operations:
 The All Personnel route adapts to the selected scenario. Normal operations
 creates one shared trip, leaves it In transit for the Driver, and lets the
 Driver advance it to Arrived, record a customer visit while the trip is still
-active, then complete it. Delivery delay carries the scenario's existing
-delayed trip through the same Driver journey.
-Vehicle incident carries the referenced Exception trip through all personnel
-without creating or advancing an unrelated trip; the Driver only inspects the
-incident. Trip progression targets the current trip state, so completed stages
-are not replayed.
+active, then complete it. Delivery delay carries the existing delayed trip;
+the Dispatcher acknowledges it and the Supervisor records a simulated
+investigation and response before the Driver completes the journey. Closing
+the sample alert does not establish that a real-world delay has ended.
+Vehicle incident carries the referenced Exception trip through the personnel
+handoffs without creating or advancing an unrelated trip; the Driver only
+inspects the incident. Trip progression targets the current trip state, so
+completed stages are not replayed.
 
 Autoplay and Guided visibly animate a labeled pointer over the relevant
 controls. The Director invokes validated app actions directly rather than

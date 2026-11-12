@@ -51,7 +51,6 @@ class DemoPathGenerator {
     final scenarioTrip = scenario == DemoScenario.vehicleIncident;
     final createTrip = scenario == DemoScenario.normal;
     return [
-      ..._administrator,
       DemoPathStep(
         role: DemoPathAudience.dispatcher,
         screen: 'Home',
@@ -132,6 +131,17 @@ class DemoPathGenerator {
         action: 'inspect-reports',
         description: 'Review shared operational totals and trip analytics.',
       ),
+      if (scenario == DemoScenario.delayedDelivery) ...[
+        const DemoPathStep(
+          role: DemoPathAudience.supervisor,
+          screen: 'Home',
+          title: 'Supervisor reviews the delay response',
+          action: 'inspect-home',
+          description:
+              'Review the delay alert after Dispatcher acknowledgment and before the Driver completes the journey.',
+        ),
+        ..._supervisor,
+      ],
       DemoPathStep(
         role: DemoPathAudience.driver,
         screen: 'Home',
@@ -141,13 +151,12 @@ class DemoPathGenerator {
             ? 'Continue the same trip at In transit; the Dispatcher left the remaining journey for the Driver.'
             : scenarioTrip
                 ? 'Review the same Exception trip without advancing it.'
-                : 'Continue the same delayed trip from its current saved stage.',
+                : 'Continue the same delayed trip after the Supervisor records a simulated response; this does not prove that the real-world delay has ended.',
       ),
       DemoPathStep(
         role: DemoPathAudience.driver,
         screen: 'Trips',
-        title:
-            scenarioTrip ? 'Review exception state' : 'Continue assigned trip',
+        title: scenarioTrip ? 'Review exception state' : 'Continue assigned trip',
         action: scenarioTrip ? 'inspect-exception' : 'inspect-trip',
         description: scenarioTrip
             ? 'Inspect the same Exception trip referenced by the vehicle incident.'
@@ -189,14 +198,15 @@ class DemoPathGenerator {
           description:
               'Complete the same trip after the recorded site visit, without replaying completed stages.',
         ),
-      const DemoPathStep(
-        role: DemoPathAudience.driver,
-        screen: 'Alerts',
-        title: 'Review alert without changing it',
-        action: 'inspect-alert',
-        description:
-            'View the same scenario alert without acknowledging, assigning, or resolving it.',
-      ),
+      if (scenario != DemoScenario.delayedDelivery)
+        const DemoPathStep(
+          role: DemoPathAudience.driver,
+          screen: 'Alerts',
+          title: 'Review alert without changing it',
+          action: 'inspect-alert',
+          description:
+              'View the same scenario alert without acknowledging, assigning, or resolving it.',
+        ),
       const DemoPathStep(
         role: DemoPathAudience.driver,
         screen: 'Reports',
@@ -205,75 +215,8 @@ class DemoPathGenerator {
         description:
             'Review completion and any explicitly recorded site visit data.',
       ),
-      const DemoPathStep(
-        role: DemoPathAudience.supervisor,
-        screen: 'Home',
-        title: 'Supervisor handoff',
-        action: 'inspect-home',
-        description:
-            'Review the same open scenario alert after the Driver handoff.',
-      ),
-      const DemoPathStep(
-        role: DemoPathAudience.supervisor,
-        screen: 'Alerts',
-        title: 'Filter the situation queue',
-        action: 'filter-alerts',
-        description: 'Filter to the same scenario alert.',
-      ),
-      const DemoPathStep(
-        role: DemoPathAudience.supervisor,
-        screen: 'Alerts',
-        title: 'Inspect the shared alert',
-        action: 'inspect-alert',
-        description:
-            'Open the same alert previously reviewed by the Dispatcher and Driver.',
-      ),
-      const DemoPathStep(
-        role: DemoPathAudience.supervisor,
-        screen: 'Alerts',
-        title: 'Investigate the shared alert',
-        action: 'investigate-alert',
-        description:
-            'Acknowledge if needed, assign a sample supervisor, and add an investigation note.',
-      ),
-      const DemoPathStep(
-        role: DemoPathAudience.supervisor,
-        screen: 'Map',
-        title: 'Inspect affected vehicle',
-        action: 'inspect-map',
-        description:
-            'Inspect the vehicle assigned to the shared trip or incident record.',
-      ),
-      const DemoPathStep(
-        role: DemoPathAudience.supervisor,
-        screen: 'Trips',
-        title: 'Review shared trip timeline',
-        action: 'inspect-trip',
-        description:
-            'Review the same trip and its updated stage timeline after the handoffs.',
-      ),
-      const DemoPathStep(
-        role: DemoPathAudience.supervisor,
-        screen: 'Alerts',
-        title: 'Resolve shared alert and review history',
-        action: 'resolve-alert',
-        description:
-            'Resolve the same sample alert using the app confirmation flow, then open its history.',
-      ),
-      const DemoPathStep(
-        role: DemoPathAudience.supervisor,
-        screen: 'Reports',
-        title: 'Review final operational impact',
-        action: 'inspect-reports',
-        description: 'Review shared trip, alert, and visit outcomes.',
-      ),
-      const DemoPathStep(
-        role: DemoPathAudience.supervisor,
-        screen: 'Home',
-        title: 'Finish at the operations overview',
-        action: 'inspect-home',
-        description: 'Return to Home with the updated demonstration state.',
-      ),
+      if (scenario != DemoScenario.delayedDelivery) ..._supervisor,
+      ..._administrator,
     ];
   }
 
@@ -712,7 +655,7 @@ class DemoPathGenerator {
       title: 'Verify attention totals',
       action: 'inspect-home',
       description:
-          'Confirm the dashboard reflects the saved local alert state.',
+          'Confirm the dashboard reflects the saved local alert state before the next personnel handoff.',
     ),
   ];
 }

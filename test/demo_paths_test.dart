@@ -103,34 +103,46 @@ void main() {
     }
   });
 
-  test('All Personnel combines paths in the requested role order', () {
-    final path = DemoPathGenerator.generate(
-      audience: DemoPathAudience.allPersonnel,
-      scenario: DemoScenario.normal,
-    );
-    final roles = path.map((step) => step.role).toSet();
+  test('All Personnel puts detailed Administrator review at the end', () {
+    for (final scenario in DemoScenario.values) {
+      final path = DemoPathGenerator.generate(
+        audience: DemoPathAudience.allPersonnel,
+        scenario: scenario,
+      );
+      final roles = path.map((step) => step.role).toSet();
 
-    expect(roles, {
-      DemoPathAudience.administrator,
-      DemoPathAudience.dispatcher,
-      DemoPathAudience.driver,
-      DemoPathAudience.supervisor,
-    });
-    expect(path.first.role, DemoPathAudience.administrator);
-    expect(
-      path.indexWhere((step) => step.role == DemoPathAudience.dispatcher),
-      greaterThan(path.lastIndexWhere(
-          (step) => step.role == DemoPathAudience.administrator)),
-    );
-    expect(
-      path.indexWhere((step) => step.role == DemoPathAudience.driver),
-      greaterThan(path
-          .lastIndexWhere((step) => step.role == DemoPathAudience.dispatcher)),
-    );
-    expect(
-      path.indexWhere((step) => step.role == DemoPathAudience.supervisor),
-      greaterThan(
-          path.lastIndexWhere((step) => step.role == DemoPathAudience.driver)),
-    );
+      expect(roles, {
+        DemoPathAudience.administrator,
+        DemoPathAudience.dispatcher,
+        DemoPathAudience.driver,
+        DemoPathAudience.supervisor,
+      });
+      expect(path.first.role, DemoPathAudience.dispatcher);
+      expect(path.last.role, DemoPathAudience.administrator);
+      final dispatcherIndex =
+          path.indexWhere((step) => step.role == DemoPathAudience.dispatcher);
+      final driverIndex =
+          path.indexWhere((step) => step.role == DemoPathAudience.driver);
+      final supervisorIndex =
+          path.indexWhere((step) => step.role == DemoPathAudience.supervisor);
+      final administratorIndex =
+          path.indexWhere((step) => step.role == DemoPathAudience.administrator);
+      expect(dispatcherIndex, lessThan(driverIndex));
+      expect(driverIndex, lessThan(administratorIndex));
+      if (scenario == DemoScenario.delayedDelivery) {
+        expect(supervisorIndex, lessThan(driverIndex));
+        final responseIndex =
+            path.indexWhere((step) => step.action == 'resolve-alert');
+        final completionIndex = path.indexWhere(
+          (step) =>
+              step.role == DemoPathAudience.driver &&
+              step.targetStatus == 'Completed',
+        );
+        expect(responseIndex, lessThan(completionIndex));
+      } else {
+        expect(driverIndex, lessThan(supervisorIndex));
+        expect(supervisorIndex, lessThan(administratorIndex));
+      }
+    }
   });
 }
