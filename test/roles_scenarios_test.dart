@@ -21,7 +21,7 @@ Future<void> tab(WidgetTester tester, String label) async {
   await tester.pumpAndSettle();
 }
 
-Future<void> waitForPresentationTouches(WidgetTester tester) async {
+Future<void> waitForPresentationActions(WidgetTester tester) async {
   const completeKey = ValueKey('presentation-action-complete');
   for (var attempt = 0; attempt < 240; attempt++) {
     await tester.pump(const Duration(milliseconds: 100));
@@ -30,7 +30,7 @@ Future<void> waitForPresentationTouches(WidgetTester tester) async {
       return;
     }
   }
-  fail('Presentation touch sequence did not finish.');
+  fail('Presentation action sequence did not finish.');
 }
 
 Future<void> chooseScenario(WidgetTester tester, DemoScenario scenario) async {
@@ -265,7 +265,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('confirm-start-presentation')));
     await tester.pumpAndSettle();
-    await waitForPresentationTouches(tester);
+    await waitForPresentationActions(tester);
     expect(find.text('STEP 1 OF 5 · HOME'), findsOneWidget);
     expect(find.byKey(const ValueKey('presentation-next')), findsOneWidget);
     expect(store.scenario, DemoScenario.vehicleIncident);
@@ -312,7 +312,7 @@ void main() {
     await tester.pump();
     await tester.tap(find.byKey(const ValueKey('presentation-pause')));
     await tester.pumpAndSettle();
-    await waitForPresentationTouches(tester);
+    await waitForPresentationActions(tester);
     final pausedClock = tester
         .widget<Text>(find.byKey(const ValueKey('presentation-countdown')))
         .data!;
@@ -335,7 +335,7 @@ void main() {
     expect(find.text('Trip activity'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('presentation-pause')));
     await tester.pump();
-    await waitForPresentationTouches(tester);
+    await waitForPresentationActions(tester);
     await tester.tap(find.byKey(const ValueKey('stop-presentation')));
     await tester.pumpAndSettle();
     expect(find.text('Operations overview'), findsOneWidget);
@@ -357,15 +357,15 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('confirm-start-presentation')));
     await tester.pumpAndSettle();
-    await waitForPresentationTouches(tester);
+    await waitForPresentationActions(tester);
 
     await tester.tap(find.byKey(const ValueKey('presentation-next')));
     await tester.pumpAndSettle();
-    await waitForPresentationTouches(tester);
+    await waitForPresentationActions(tester);
     expect(find.text('Trip activity'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('presentation-next')));
     await tester.pumpAndSettle();
-    await waitForPresentationTouches(tester);
+    await waitForPresentationActions(tester);
     expect(store.tripByCode('TR-2048').status, 'Approaching');
     expect(find.text('STEP 3 OF 5 · MAP'), findsOneWidget);
 
@@ -377,11 +377,11 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('presentation-next')));
     await tester.pumpAndSettle();
-    await waitForPresentationTouches(tester);
+    await waitForPresentationActions(tester);
     expect(find.text('Situation management'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('presentation-next')));
     await tester.pumpAndSettle();
-    await waitForPresentationTouches(tester);
+    await waitForPresentationActions(tester);
     expect(store.alertById('alert-tracking').acknowledged, isTrue);
     expect(find.text('STEP 5 OF 5 · REPORTS'), findsOneWidget);
     expect(find.text('Operational reports'), findsOneWidget);
@@ -416,12 +416,12 @@ void main() {
     await tester.pump();
     await tester.tap(find.byKey(const ValueKey('presentation-pause')));
     await tester.pumpAndSettle();
-    await waitForPresentationTouches(tester);
+    await waitForPresentationActions(tester);
 
     for (var index = 0; index < 4; index++) {
       await tester.tap(find.byKey(const ValueKey('presentation-next')));
       await tester.pumpAndSettle();
-      await waitForPresentationTouches(tester);
+      await waitForPresentationActions(tester);
     }
     expect(store.tripByCode('TR-2048').status, 'Approaching');
     expect(store.alertById('alert-tracking').acknowledged, isTrue);
@@ -440,7 +440,7 @@ void main() {
     await tester.pump();
     await tester.tap(find.byKey(const ValueKey('presentation-pause')));
     await tester.pumpAndSettle();
-    await waitForPresentationTouches(tester);
+    await waitForPresentationActions(tester);
     expect(store.trips, hasLength(2));
     expect(store.tripByCode('TR-2048').status, 'Approaching');
     expect(store.alertById('alert-tracking').acknowledged, isFalse);
@@ -456,8 +456,7 @@ void main() {
     final store = DemoStore.memory();
     addTearDown(store.dispose);
     await tester.pumpWidget(DumptrakPrototypeApp(store: store));
-    final launch =
-        find.byKey(const ValueKey('open-stakeholder-walkthrough'));
+    final launch = find.byKey(const ValueKey('open-stakeholder-walkthrough'));
     await reveal(tester, launch);
     await tester.tap(launch);
     await tester.pumpAndSettle();
@@ -491,12 +490,12 @@ void main() {
       sawTouch = find.text('Open trip').evaluate().isNotEmpty;
     }
     expect(sawTouch, isTrue);
-    await waitForPresentationTouches(tester);
+    await waitForPresentationActions(tester);
 
     for (var step = 0; step < 3; step++) {
       await tester.tap(find.byKey(const ValueKey('presentation-next')));
       await tester.pumpAndSettle();
-      await waitForPresentationTouches(tester);
+      await waitForPresentationActions(tester);
     }
     expect(find.text('STEP 4 OF 5 · ALERTS'), findsOneWidget);
     expect(store.alertById('alert-tracking').acknowledged, isFalse);
@@ -504,6 +503,48 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('stop-presentation')));
     await tester.pumpAndSettle();
+  });
+
+  testWidgets('stopping during pointer animation cancels pending action',
+      (tester) async {
+    final store = DemoStore.memory();
+    addTearDown(store.dispose);
+    await tester.pumpWidget(DumptrakPrototypeApp(store: store));
+
+    final launch = find.byKey(const ValueKey('open-stakeholder-walkthrough'));
+    await reveal(tester, launch);
+    await tester.tap(launch);
+    await tester.pumpAndSettle();
+
+    final mode = find.byKey(
+        ValueKey('presentation-mode-${DemoPresentationMode.guided.name}'));
+    await reveal(tester, mode);
+    await tester.tap(mode);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(DemoPresentationMode.autoplay.label).last);
+    await tester.pumpAndSettle();
+    final start = find.byKey(const ValueKey('start-presentation'));
+    await reveal(tester, start);
+    await tester.tap(start);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('confirm-start-presentation')));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('presentation-pause')));
+    await tester.pump();
+
+    var sawPointer = false;
+    for (var attempt = 0; attempt < 80 && !sawPointer; attempt++) {
+      await tester.pump(const Duration(milliseconds: 50));
+      sawPointer = find.text('Open trip').evaluate().isNotEmpty;
+    }
+    expect(sawPointer, isTrue);
+    await tester.tap(find.byKey(const ValueKey('stop-presentation')));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 2));
+
+    expect(store.tripByCode('TR-2048').status, 'In transit');
+    expect(find.byKey(const ValueKey('advance-trip')), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('Explore loads the chosen scenario and applies display-only role',

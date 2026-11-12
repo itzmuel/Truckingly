@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'demo_fleet.dart';
@@ -22,6 +24,7 @@ class FleetMapPage extends StatefulWidget {
     this.presentationMarkerKey,
     this.presentationOpenTripKey,
     this.presentationBackKey,
+    this.presentationTripDetailsKey,
     this.scrollController,
     this.vehicleDetailsScrollController,
     this.tripDetailsScrollController,
@@ -32,16 +35,47 @@ class FleetMapPage extends StatefulWidget {
   final GlobalKey? presentationMarkerKey;
   final GlobalKey? presentationOpenTripKey;
   final GlobalKey? presentationBackKey;
+  final GlobalKey<TripDetailsState>? presentationTripDetailsKey;
   final ScrollController? scrollController;
   final ScrollController? vehicleDetailsScrollController;
   final ScrollController? tripDetailsScrollController;
 
   @override
-  State<FleetMapPage> createState() => _FleetMapPageState();
+  FleetMapPageState createState() => FleetMapPageState();
 }
 
-class _FleetMapPageState extends State<FleetMapPage> {
+class FleetMapPageState extends State<FleetMapPage> {
   final _transform = TransformationController();
+
+  void openVehicleForPresentation() {
+    final id = widget.presentationVehicleId;
+    if (id == null) {
+      throw StateError('The presentation vehicle is not selected.');
+    }
+    unawaited(_showVehicle(id));
+  }
+
+  void openAssignedTripForPresentation() {
+    final id = widget.presentationVehicleId;
+    if (id == null) {
+      throw StateError('The presentation vehicle is not selected.');
+    }
+    final vehicle = demoFleet(widget.store).firstWhere(
+      (item) => item.id == id,
+      orElse: () => throw StateError('The presentation vehicle is unavailable.'),
+    );
+    final code = vehicle.trip?.code;
+    if (code == null) {
+      throw StateError('The presentation vehicle has no assigned trip.');
+    }
+    _closeVehicleDetails(code);
+  }
+
+  void backFromTripForPresentation() => Navigator.of(context).pop();
+
+  void _closeVehicleDetails([String? tripCode]) {
+    Navigator.of(context).pop(tripCode);
+  }
 
   @override
   void dispose() {
@@ -128,7 +162,7 @@ class _FleetMapPageState extends State<FleetMapPage> {
                       child: FilledButton.icon(
                         key: const ValueKey('vehicle-open-trip'),
                         onPressed: () =>
-                            Navigator.pop(context, vehicle.trip!.code),
+                            _closeVehicleDetails(vehicle.trip!.code),
                         icon: const Icon(Icons.route),
                         label: const Text('Open demo trip'),
                       ),
@@ -144,6 +178,7 @@ class _FleetMapPageState extends State<FleetMapPage> {
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
         builder: (context) => TripDetails(
+          key: widget.presentationTripDetailsKey,
           store: widget.store,
           code: code,
           presentationBackKey: widget.presentationBackKey,

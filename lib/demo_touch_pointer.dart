@@ -1,15 +1,13 @@
 import 'dart:async';
 
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 class DemoTouchPointer {
-  static int _nextPointer = 1;
-
-  static Future<void> tap(
+  static Future<void> showAndActivate(
     BuildContext context,
     GlobalKey target, {
     required String label,
+    Future<void> Function()? onActivate,
     ScrollController? scrollController,
     bool Function()? shouldContinue,
   }) async {
@@ -72,13 +70,11 @@ class DemoTouchPointer {
       renderObject.size.center(Offset.zero),
     );
     final overlayPosition = overlayObject.globalToLocal(globalPosition);
-    final pointerId = _nextPointer++;
     var pointerPosition = Offset(
       (overlayObject.size.width - 44).clamp(0, overlayObject.size.width),
       (overlayObject.size.height - 70).clamp(0, overlayObject.size.height),
     );
     var pressed = false;
-    var attached = true;
     final entry = OverlayEntry(
       builder: (context) => Positioned.fill(
         child: IgnorePointer(
@@ -111,31 +107,17 @@ class DemoTouchPointer {
       }
       pressed = true;
       entry.markNeedsBuild();
-      GestureBinding.instance.handlePointerEvent(
-        PointerDownEvent(
-          pointer: pointerId,
-          position: globalPosition,
-          kind: PointerDeviceKind.touch,
-          buttons: kPrimaryButton,
-        ),
-      );
       await Future<void>.delayed(const Duration(milliseconds: 140));
-      GestureBinding.instance.handlePointerEvent(
-        PointerUpEvent(
-          pointer: pointerId,
-          position: globalPosition,
-          kind: PointerDeviceKind.touch,
-        ),
-      );
+      if (!context.mounted || (shouldContinue != null && !shouldContinue())) {
+        return;
+      }
+      await onActivate?.call();
       pressed = false;
       entry.markNeedsBuild();
       await Future<void>.delayed(const Duration(milliseconds: 420));
     } finally {
-      if (attached) {
-        entry.remove();
-        entry.dispose();
-        attached = false;
-      }
+      entry.remove();
+      entry.dispose();
     }
   }
 }

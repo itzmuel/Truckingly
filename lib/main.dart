@@ -297,12 +297,18 @@ class _OperationsShellState extends State<OperationsShell> {
   bool _presentationPlaying = false;
   bool _presentationActionInProgress = false;
   int _presentationTouchGeneration = 0;
+  final GlobalKey<TripDetailsState> _presentationTripDetailsKey = GlobalKey();
+  final GlobalKey<TripDetailsState> _presentationMapTripDetailsKey =
+      GlobalKey();
+  final GlobalKey<FleetMapPageState> _presentationMapPageKey = GlobalKey();
+  final GlobalKey<AlertDetailsState> _presentationAlertDetailsKey = GlobalKey();
   final GlobalKey _presentationPrimaryTargetKey = GlobalKey();
   final GlobalKey _presentationSecondaryTargetKey = GlobalKey();
   final GlobalKey _presentationTertiaryTargetKey = GlobalKey();
   final GlobalKey _presentationFourthTargetKey = GlobalKey();
   final ScrollController _presentationHomeScrollController = ScrollController();
-  final ScrollController _presentationTripsScrollController = ScrollController();
+  final ScrollController _presentationTripsScrollController =
+      ScrollController();
   final ScrollController _presentationMapScrollController = ScrollController();
   final ScrollController _presentationAlertsScrollController =
       ScrollController();
@@ -805,9 +811,9 @@ class _OperationsShellState extends State<OperationsShell> {
   }
 
   Widget _mapPage() {
-    final isPresentationMap =
-        _presentationActive && _presentationStep == 2;
+    final isPresentationMap = _presentationActive && _presentationStep == 2;
     return FleetMapPage(
+      key: isPresentationMap ? _presentationMapPageKey : null,
       store: _demo,
       presentationVehicleId:
           isPresentationMap ? _presentationTrip?.vehicle : null,
@@ -817,9 +823,10 @@ class _OperationsShellState extends State<OperationsShell> {
           isPresentationMap ? _presentationSecondaryTargetKey : null,
       presentationBackKey:
           isPresentationMap ? _presentationFourthTargetKey : null,
+      presentationTripDetailsKey:
+          isPresentationMap ? _presentationMapTripDetailsKey : null,
       scrollController: _presentationMapScrollController,
-      vehicleDetailsScrollController:
-          _presentationVehicleSheetScrollController,
+      vehicleDetailsScrollController: _presentationVehicleSheetScrollController,
       tripDetailsScrollController: _presentationDetailsScrollController,
     );
   }
@@ -945,12 +952,11 @@ class _OperationsShellState extends State<OperationsShell> {
                   reference:
                       '${_trips.firstWhere((trip) => trip.code == alert.tripCode).vehicle} · ${alert.tripCode}',
                   expanded: true,
-                  presentationManageKey:
-                      _presentationActive &&
-                              _presentationStep == 3 &&
-                              alert.id == _presentationAlertId
-                          ? _presentationPrimaryTargetKey
-                          : null,
+                  presentationManageKey: _presentationActive &&
+                          _presentationStep == 3 &&
+                          alert.id == _presentationAlertId
+                      ? _presentationPrimaryTargetKey
+                      : null,
                   onAction: (_) => _openAlert(alert.id),
                 ),
                 const SizedBox(height: 10),
@@ -1047,11 +1053,11 @@ class _OperationsShellState extends State<OperationsShell> {
   }
 
   void _openAlert(String id) {
-    final isPresentationAlert =
-        _presentationActive && _presentationStep == 3;
+    final isPresentationAlert = _presentationActive && _presentationStep == 3;
     Navigator.of(context).push<void>(
       MaterialPageRoute(
         builder: (context) => AlertDetails(
+          key: isPresentationAlert ? _presentationAlertDetailsKey : null,
           store: _demo,
           id: id,
           scrollController: _presentationDetailsScrollController,
@@ -1195,8 +1201,7 @@ class _OperationsShellState extends State<OperationsShell> {
         _presentationActionInProgress = false;
         _presentationSecondsRemaining =
             DemoPresentationStep.stepDuration(_presentationLength).inSeconds;
-        _presentationActive =
-            _presentationMode != DemoPresentationMode.explore;
+        _presentationActive = _presentationMode != DemoPresentationMode.explore;
         _presentationPlaying =
             _presentationMode == DemoPresentationMode.autoplay;
         _tab = _presentationMode == DemoPresentationMode.explore ? 0 : 4;
@@ -1276,10 +1281,11 @@ class _OperationsShellState extends State<OperationsShell> {
     });
   }
 
-  Future<void> _performPresentationTap(
+  Future<void> _performPresentationAction(
     GlobalKey target,
     String label,
     int generation, {
+    Future<void> Function()? onActivate,
     ScrollController? scrollController,
   }) async {
     bool canContinue() =>
@@ -1287,10 +1293,11 @@ class _OperationsShellState extends State<OperationsShell> {
         _presentationActive &&
         generation == _presentationTouchGeneration;
     if (!canContinue()) return;
-    await DemoTouchPointer.tap(
+    await DemoTouchPointer.showAndActivate(
       context,
       target,
       label: label,
+      onActivate: onActivate,
       scrollController: scrollController,
       shouldContinue: canContinue,
     );
@@ -1323,58 +1330,133 @@ class _OperationsShellState extends State<OperationsShell> {
             throw StateError(
                 'The selected demo scenario has no active trip to advance.');
           }
-          await _performPresentationTap(
+          await _performPresentationAction(
               _presentationPrimaryTargetKey, 'Open trip', generation,
+              onActivate: () async => _openTrip(trip.code),
               scrollController: _presentationHomeScrollController);
-          await _performPresentationTap(
+          await _performPresentationAction(
               _presentationSecondaryTargetKey, 'Advance stage', generation,
-              scrollController: _presentationDetailsScrollController);
+              onActivate: () async {
+            final details = _presentationTripDetailsKey.currentState;
+            if (details == null) {
+              throw StateError(
+                  'The presentation trip details are unavailable.');
+            }
+            await details.advanceForPresentation();
+          }, scrollController: _presentationDetailsScrollController);
           await _waitForDemoSave(generation);
           if (generation == _presentationTouchGeneration &&
-              _demo.trips
-                      .firstWhere((item) => item.code == trip.code)
-                      .status ==
+              _demo.trips.firstWhere((item) => item.code == trip.code).status ==
                   trip.status) {
             throw StateError('The simulated trip stage did not change.');
           }
-          await _performPresentationTap(
-              _presentationTertiaryTargetKey, 'Back to overview', generation);
+          await _performPresentationAction(
+            _presentationTertiaryTargetKey,
+            'Back to overview',
+            generation,
+            onActivate: () async {
+              final details = _presentationTripDetailsKey.currentState;
+              if (details == null) {
+                throw StateError(
+                    'The presentation trip details are unavailable.');
+              }
+              details.backForPresentation();
+            },
+          );
         case 1:
-          await _performPresentationTap(
+          await _performPresentationAction(
               _presentationPrimaryTargetKey, 'Inspect trip', generation,
-              scrollController: _presentationTripsScrollController);
-          await _performPresentationTap(
-              _presentationSecondaryTargetKey, 'Back to trips', generation);
+              onActivate: () async {
+            final trip = _presentationTrip;
+            if (trip == null) {
+              throw StateError('The presentation trip is unavailable.');
+            }
+            _openTrip(trip.code);
+          }, scrollController: _presentationTripsScrollController);
+          await _performPresentationAction(
+            _presentationSecondaryTargetKey,
+            'Back to trips',
+            generation,
+            onActivate: () async {
+              final details = _presentationTripDetailsKey.currentState;
+              if (details == null) {
+                throw StateError(
+                    'The presentation trip details are unavailable.');
+              }
+              details.backForPresentation();
+            },
+          );
         case 2:
-          await _performPresentationTap(
+          await _performPresentationAction(
               _presentationPrimaryTargetKey, 'Open vehicle', generation,
-              scrollController: _presentationMapScrollController);
-          await _performPresentationTap(
+              onActivate: () async {
+            final map = _presentationMapPageKey.currentState;
+            if (map == null) {
+              throw StateError('The presentation fleet map is unavailable.');
+            }
+            map.openVehicleForPresentation();
+          }, scrollController: _presentationMapScrollController);
+          await _performPresentationAction(
               _presentationSecondaryTargetKey, 'Open assigned trip', generation,
-              scrollController: _presentationVehicleSheetScrollController);
-          await _performPresentationTap(
-              _presentationFourthTargetKey, 'Back to map', generation);
+              onActivate: () async {
+            final map = _presentationMapPageKey.currentState;
+            if (map == null) {
+              throw StateError('The presentation fleet map is unavailable.');
+            }
+            map.openAssignedTripForPresentation();
+          }, scrollController: _presentationVehicleSheetScrollController);
+          await _performPresentationAction(
+            _presentationFourthTargetKey,
+            'Back to map',
+            generation,
+            onActivate: () async {
+              final map = _presentationMapPageKey.currentState;
+              if (map == null) {
+                throw StateError('The presentation fleet map is unavailable.');
+              }
+              map.backFromTripForPresentation();
+            },
+          );
         case 3:
           final alert = _demo.alertById(_presentationAlertId);
-          await _performPresentationTap(
+          await _performPresentationAction(
               _presentationPrimaryTargetKey, 'Review alert', generation,
+              onActivate: () async => _openAlert(alert.id),
               scrollController: _presentationAlertsScrollController);
           if (_presentationRole != _DemoRole.driver &&
               alert.isOpen &&
               !alert.acknowledged) {
-            await _performPresentationTap(
+            await _performPresentationAction(
                 _presentationSecondaryTargetKey, 'Acknowledge', generation,
-                scrollController: _presentationDetailsScrollController);
+                onActivate: () async {
+              final details = _presentationAlertDetailsKey.currentState;
+              if (details == null) {
+                throw StateError(
+                    'The presentation alert details are unavailable.');
+              }
+              await details.acknowledgeForPresentation();
+            }, scrollController: _presentationDetailsScrollController);
             await _waitForDemoSave(generation);
             if (generation == _presentationTouchGeneration &&
                 !_demo.alertById(alert.id).acknowledged) {
               throw StateError('The demo alert was not acknowledged.');
             }
           }
-          await _performPresentationTap(
-              _presentationTertiaryTargetKey, 'Back to alerts', generation);
+          await _performPresentationAction(
+            _presentationTertiaryTargetKey,
+            'Back to alerts',
+            generation,
+            onActivate: () async {
+              final details = _presentationAlertDetailsKey.currentState;
+              if (details == null) {
+                throw StateError(
+                    'The presentation alert details are unavailable.');
+              }
+              details.backForPresentation();
+            },
+          );
         case 4:
-          await _performPresentationTap(_presentationPrimaryTargetKey,
+          await _performPresentationAction(_presentationPrimaryTargetKey,
               'Open customer visits report', generation,
               scrollController: _presentationReportsScrollController);
       }
@@ -1483,7 +1565,8 @@ class _OperationsShellState extends State<OperationsShell> {
 
   Widget _presentationPage() {
     final step = DemoPresentationStep.sequence[_presentationStep];
-    final lastStep = _presentationStep == DemoPresentationStep.sequence.length - 1;
+    final lastStep =
+        _presentationStep == DemoPresentationStep.sequence.length - 1;
     return Column(
       children: [
         Padding(
@@ -1551,8 +1634,8 @@ class _OperationsShellState extends State<OperationsShell> {
                 const SizedBox(height: 4),
                 Text(
                   _presentationNarration(step),
-                  style: const TextStyle(
-                      color: _muted, fontSize: 12, height: 1.4),
+                  style:
+                      const TextStyle(color: _muted, fontSize: 12, height: 1.4),
                 ),
                 if (_presentationActionInProgress) ...[
                   const SizedBox(height: 8),
@@ -1566,7 +1649,7 @@ class _OperationsShellState extends State<OperationsShell> {
                       SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'Demonstrating with simulated touches…',
+                          'Demonstrating with simulated actions…',
                           key: ValueKey('presentation-action-progress'),
                           style: TextStyle(
                               color: _blue,
@@ -1581,8 +1664,7 @@ class _OperationsShellState extends State<OperationsShell> {
                   const SizedBox(height: 8),
                   const Row(
                     children: [
-                      Icon(Icons.check_circle_outline,
-                          size: 15, color: _green),
+                      Icon(Icons.check_circle_outline, size: 15, color: _green),
                       SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -1610,8 +1692,9 @@ class _OperationsShellState extends State<OperationsShell> {
                     ),
                     if (_presentationMode == DemoPresentationMode.autoplay)
                       IconButton.filled(
-                        key: ValueKey(
-                            _presentationPlaying ? 'presentation-pause' : 'presentation-resume'),
+                        key: ValueKey(_presentationPlaying
+                            ? 'presentation-pause'
+                            : 'presentation-resume'),
                         tooltip: _presentationPlaying ? 'Pause' : 'Resume',
                         onPressed: () =>
                             _setPresentationPlaying(!_presentationPlaying),
@@ -1979,7 +2062,8 @@ class _OperationsShellState extends State<OperationsShell> {
               key: const ValueKey('presentation-role-switcher'),
               initialValue: _presentationRole,
               isExpanded: true,
-              decoration: const InputDecoration(labelText: 'Personnel perspective'),
+              decoration:
+                  const InputDecoration(labelText: 'Personnel perspective'),
               items: [
                 for (final role in _DemoRole.values)
                   DropdownMenuItem(
@@ -2638,15 +2722,15 @@ class _OperationsShellState extends State<OperationsShell> {
   }
 
   void _openTrip(String code) {
-    final isPresentationTrip =
-        _presentationActive && (_presentationStep == 0 || _presentationStep == 1);
+    final isPresentationTrip = _presentationActive &&
+        (_presentationStep == 0 || _presentationStep == 1);
     Navigator.of(context).push<void>(
       MaterialPageRoute(
         builder: (context) => TripDetails(
+          key: isPresentationTrip ? _presentationTripDetailsKey : null,
           store: _demo,
           code: code,
-          presentationAdvanceKey: isPresentationTrip &&
-                  _presentationStep == 0
+          presentationAdvanceKey: isPresentationTrip && _presentationStep == 0
               ? _presentationSecondaryTargetKey
               : null,
           presentationBackKey: isPresentationTrip
@@ -2654,9 +2738,8 @@ class _OperationsShellState extends State<OperationsShell> {
                   ? _presentationTertiaryTargetKey
                   : _presentationSecondaryTargetKey
               : null,
-          scrollController: isPresentationTrip
-              ? _presentationDetailsScrollController
-              : null,
+          scrollController:
+              isPresentationTrip ? _presentationDetailsScrollController : null,
         ),
       ),
     );
@@ -2916,8 +2999,9 @@ class AlertCard extends StatelessWidget {
                 KeyedSubtree(
                   key: presentationManageKey,
                   child: FilledButton(
-                    onPressed: () => onAction?.call(
-                        severity == 'Warning' ? 'Reset Link' : 'Verify Tonnage'),
+                    onPressed: () => onAction?.call(severity == 'Warning'
+                        ? 'Reset Link'
+                        : 'Verify Tonnage'),
                     child: const Text('Manage demo alert'),
                   ),
                 ),

@@ -70,9 +70,11 @@ five-screen sequence on a 3-, 5-, or 8-minute schedule and supports pause,
 resume, previous, next, replay, and stop; Guided waits for the presenter to
 advance after each screen's demonstration; Explore loads the selected scenario
 and returns to the interactive app. Autoplay and Guided visibly animate a
-labeled simulated touch pointer over real app controls, then activate those
-controls: open a trip, advance its journey stage, inspect the assigned vehicle
-on the map, review the scenario alert, and open the Customer visits report.
+labeled pointer over the relevant controls. The Director invokes the same
+validated screen actions directly instead of synthesizing input events, making
+the sequence dependable across layouts and devices. It opens a trip, advances
+its journey stage, inspects the assigned vehicle on the map, reviews the
+scenario alert, and opens the Customer visits report.
 The presentation header identifies the selected sample person and role, and
 the narration emphasizes that role's responsibilities. A Driver perspective
 reviews alerts without acknowledging them; the other perspectives acknowledge
@@ -80,8 +82,8 @@ the selected open demo alert. Roles remain display-only, not authentication,
 authorization, or permission enforcement. Starting or replaying a
 presentation requires confirmation because it replaces saved sample trips,
 alerts, and visit events. Stopping or using system Back returns to Home without
-another data change. Automated touches and resulting actions are simulated and
-saved locally; the pointer does not represent a physical touch or user input.
+another data change. Presentation actions are simulated and saved locally. The
+pointer is visual feedback only; it does not represent physical touch input.
 An acknowledged alert remains open and does not imply the underlying issue was
 resolved or repaired.
 

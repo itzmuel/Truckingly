@@ -20,14 +20,24 @@ class TripDetails extends StatefulWidget {
   final ScrollController? scrollController;
 
   @override
-  State<TripDetails> createState() => _TripDetailsState();
+  TripDetailsState createState() => TripDetailsState();
 }
 
-class _TripDetailsState extends State<TripDetails> {
+class TripDetailsState extends State<TripDetails> {
   bool _saving = false;
   String? _error;
 
+  Future<void> advanceForPresentation() => _advance();
+
+  void backForPresentation() => _back();
+
+  void _back() {
+    if (_saving) return;
+    Navigator.of(context).pop();
+  }
+
   Future<void> _advance() async {
+    if (_saving) return;
     setState(() {
       _saving = true;
       _error = null;
@@ -58,7 +68,8 @@ class _TripDetailsState extends State<TripDetails> {
     if (!mounted || updated == null) return;
     setState(() => _error = null);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Demo assignments updated and saved locally.')),
+      const SnackBar(
+          content: Text('Demo assignments updated and saved locally.')),
     );
   }
 
@@ -86,14 +97,14 @@ class _TripDetailsState extends State<TripDetails> {
               leading: widget.presentationBackKey == null
                   ? IconButton(
                       tooltip: 'Back to trips',
-                      onPressed: busy ? null : () => Navigator.of(context).pop(),
+                      onPressed: busy ? null : _back,
                       icon: const Icon(Icons.arrow_back_rounded),
                     )
                   : KeyedSubtree(
                       key: widget.presentationBackKey,
                       child: IconButton(
                         tooltip: 'Back to trips',
-                        onPressed: busy ? null : () => Navigator.of(context).pop(),
+                        onPressed: busy ? null : _back,
                         icon: const Icon(Icons.arrow_back_rounded),
                       ),
                     ),
@@ -126,8 +137,14 @@ class _TripDetailsState extends State<TripDetails> {
                           children: [
                             for (final (label, value) in [
                               ('Route', trip.route),
-                              ('Project', trip.project ?? 'Not assigned in this sample'),
-                              ('Driver', trip.driver ?? 'Not assigned in this sample'),
+                              (
+                                'Project',
+                                trip.project ?? 'Not assigned in this sample'
+                              ),
+                              (
+                                'Driver',
+                                trip.driver ?? 'Not assigned in this sample'
+                              ),
                               ('Vehicle', trip.vehicle),
                               ('Material', trip.material),
                             ])
@@ -143,7 +160,8 @@ class _TripDetailsState extends State<TripDetails> {
                     const SizedBox(height: 16),
                     OutlinedButton.icon(
                       key: const ValueKey('edit-trip'),
-                      onPressed: busy || !trip.canEdit ? null : () => _edit(trip),
+                      onPressed:
+                          busy || !trip.canEdit ? null : () => _edit(trip),
                       icon: const Icon(Icons.edit_outlined),
                       label: const Text('Edit demo assignments'),
                     ),
@@ -170,7 +188,8 @@ class _TripDetailsState extends State<TripDetails> {
                         leading: Icon(
                           status == trip.status
                               ? Icons.radio_button_checked
-                              : trip.events.any((event) => event.status == status)
+                              : trip.events
+                                      .any((event) => event.status == status)
                                   ? Icons.check_circle_outline
                                   : Icons.radio_button_unchecked,
                           color: status == trip.status
@@ -181,7 +200,8 @@ class _TripDetailsState extends State<TripDetails> {
                         subtitle: Text(
                           trip.events.any((event) => event.status == status)
                               ? _timestamp(trip.events
-                                  .lastWhere((event) => event.status == status).at)
+                                  .lastWhere((event) => event.status == status)
+                                  .at)
                               : status == trip.status
                                   ? 'Current sample stage · Timestamp not recorded'
                                   : 'No simulated event recorded',

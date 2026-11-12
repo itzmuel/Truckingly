@@ -19,15 +19,30 @@ class AlertDetails extends StatefulWidget {
   final ScrollController? scrollController;
 
   @override
-  State<AlertDetails> createState() => _AlertDetailsState();
+  AlertDetailsState createState() => AlertDetailsState();
 }
 
-class _AlertDetailsState extends State<AlertDetails> {
+class AlertDetailsState extends State<AlertDetails> {
   final _note = TextEditingController();
   final _reason = TextEditingController();
   String? _supervisor;
   String? _error;
   bool _saving = false;
+
+  Future<void> acknowledgeForPresentation() => _acknowledge();
+
+  void backForPresentation() => _back();
+
+  void _back() {
+    if (_saving) return;
+    Navigator.pop(context);
+  }
+
+  Future<void> _acknowledge() async {
+    final alert = widget.store.alertById(widget.id);
+    if (_saving || !alert.isOpen || alert.acknowledged) return;
+    await _save(() => widget.store.acknowledgeAlert(widget.id));
+  }
 
   @override
   void dispose() {
@@ -107,14 +122,14 @@ class _AlertDetailsState extends State<AlertDetails> {
               leading: widget.presentationBackKey == null
                   ? IconButton(
                       tooltip: 'Back to alerts',
-                      onPressed: busy ? null : () => Navigator.pop(context),
+                      onPressed: busy ? null : _back,
                       icon: const Icon(Icons.arrow_back),
                     )
                   : KeyedSubtree(
                       key: widget.presentationBackKey,
                       child: IconButton(
                         tooltip: 'Back to alerts',
-                        onPressed: busy ? null : () => Navigator.pop(context),
+                        onPressed: busy ? null : _back,
                         icon: const Icon(Icons.arrow_back),
                       ),
                     ),
@@ -162,8 +177,7 @@ class _AlertDetailsState extends State<AlertDetails> {
                           key: const ValueKey('acknowledge-alert'),
                           onPressed: busy || alert.acknowledged
                               ? null
-                              : () => _save(() =>
-                                  widget.store.acknowledgeAlert(widget.id)),
+                              : _acknowledge,
                           child: Text(alert.acknowledged
                               ? 'Acknowledged'
                               : 'Acknowledge demo alert'),
