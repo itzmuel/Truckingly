@@ -12,7 +12,7 @@ void main() {
     await tester.tap(find.text('Reports'));
     await tester.pumpAndSettle();
     expect(find.byType(ReportsPage), findsOneWidget);
-    expect(find.text('Presentation prototype'), findsOneWidget);
+    expect(find.text('DEMO / SIMULATED DATA'), findsOneWidget);
     await tester.tap(find.widgetWithText(TextButton, 'More').first);
     await tester.pumpAndSettle();
     expect(find.byType(ReportsPage), findsNothing);
@@ -25,6 +25,8 @@ void main() {
       theme: ThemeData.dark(useMaterial3: true),
       home: Scaffold(body: ReportsPage(onBack: () {})),
     ));
+    await tester.tap(find.byKey(const ValueKey('report-section-Customer visits')));
+    await tester.pumpAndSettle();
     final before =
         tester.widget<Text>(find.byKey(const ValueKey('report-period'))).data;
     await tester.tap(find.byKey(const ValueKey('report-from')));
@@ -74,6 +76,8 @@ void main() {
       theme: ThemeData.dark(useMaterial3: true),
       home: Scaffold(body: ReportsPage(onBack: () {})),
     ));
+    await tester.tap(find.byKey(const ValueKey('report-section-Customer visits')));
+    await tester.pumpAndSettle();
     final filter = find.byKey(const ValueKey('report-assets'));
     await tester.scrollUntilVisible(filter, 200);
     await Scrollable.ensureVisible(tester.element(filter), alignment: 0.5);
@@ -84,8 +88,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
         find.text('Data quality and provenance'), 400);
-    await tester.scrollUntilVisible(find.text('No evidence read'), 200);
-    expect(find.text('No evidence read'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('No sample visits recorded'), 200);
+    expect(find.text('No sample visits recorded'), findsOneWidget);
     await tester.scrollUntilVisible(find.text('Vehicles only'), 150);
     expect(find.text('Vehicles only'), findsOneWidget);
     await tester.scrollUntilVisible(

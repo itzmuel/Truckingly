@@ -9,16 +9,19 @@ backend, map provider, telemetry, identity provider, or settlement services.
 - **Home:** operational metrics, sample alerts, active trips, and a fleet insight.
 - **Trips:** sample trip cards, status filters, and a three-step demo creation
   wizard for route/project, assignments, and review.
-- **Map:** minimal map workspace with an explicit tracking-not-connected state;
-  no fabricated live locations.
+- **Map:** interactive simulated route schematic with status-colored vehicle
+  markers, pinch zoom/pan, reset view, and vehicle detail sheets. No live GPS.
 - **Alerts:** four selectable sections (Needs action, Earlier detections,
   History, and Informational records), an optional situation-kind filter,
   history outcome filtering, and expandable closure guidance. Needs action
-  contains two sample situations; the other sections have no sample records.
-- **Reports:** mobile Customer visits layout with inclusive date pickers,
-  required asset scope, empty-sample metrics, daily counts, customer-site and
-  visits empty states, and data provenance. Defaults to the previous calendar
-  month in the displayed Africa/Lagos reporting context. Other report sections,
+  starts with two sample situations; explicitly resolved alerts move to History.
+  Earlier detections and Informational records have no sample records.
+- **Reports:** opens to demo analytics with trip-status charts, seven-day
+  simulated completions, vehicle workload, alert summaries, and vehicle scope.
+  Also includes the mobile Customer visits layout with inclusive date pickers,
+  required asset scope, saved sample arrival/departure events, dwell summaries,
+  daily counts, and data provenance. Defaults to the current calendar month
+  through today in the Africa/Lagos reporting context. Other report sections,
   map integration, and Excel exports are explicitly not connected.
   A shared demo operations summary shows the same saved trip and alert totals
   as Home and Trips, independently of visit date filters.
@@ -41,9 +44,29 @@ The five main screens follow the supplied UX Pilot redesign: near-black
 surfaces, blue active-tab indicators, compact status badges, rounded cards,
 trip origin/destination and vehicle/material fields, and alert action cards.
 Existing filters and More detail screens remain
-available. Alert action buttons explain that no operational change was made.
+available. Alert action buttons open explicitly simulated local management.
 The trip archive shortcut selects the Completed status. The map does not claim
 that tracking is live.
+
+## Demo roles and guided scenarios
+
+**More > Account** switches between Administrator, Dispatcher, Supervisor, and
+Driver sample perspectives. This changes only the displayed sample name and
+role; it is not authentication, authorization, or permission enforcement.
+Every role can still use the same demo features.
+
+**More > Demo controls > Guided scenarios** offers Normal operations, Delivery
+delay, and Vehicle incident. Each selection includes a short screen-by-screen
+walkthrough with shortcuts to Home, Trips, Map, Alerts, or Reports. Load asks
+for confirmation and replaces the local demo snapshot with the selected fixed
+scenario. Cancel keeps all current records. Reset Demo always restores the
+original samples.
+
+The delay scenario uses a sample status label and an alert, not an actual
+calculated delay or arrival time. The incident scenario marks a sample trip as
+Exception and adds an explicitly simulated vehicle alert; it does not report a
+real vehicle condition or notify anyone. Scenario selection and records persist
+locally. Later edits can change the loaded starting scenario's records.
 
 ## Interactive demo foundation (Phase 1)
 
@@ -52,7 +75,8 @@ The original dataset has two active trips, one in transit, zero completed
 trips, and two open alerts referencing those trips. Home's completed-today
 count uses simulated completion timestamps in Africa/Lagos (UTC+1).
 Trip completion does not imply a geofence visit, verified tonnage, or an
-automatically resolved alert; Customer visits stays explicitly empty.
+automatically resolved alert. Customer visits only counts manually recorded
+sample arrivals and departures; trip completion alone never creates a visit.
 
 Use **More > Demo controls** to:
 
@@ -122,8 +146,90 @@ actions and Back while pending. Failed saves leave records unchanged and show
 an error for retry. Back from details returns to the originating tab and keeps
 its filters and scroll position. Reset Demo also clears recorded events.
 
-Interactive map/vehicle details, alert lifecycle,
-visit analytics, roles, and guided scenarios remain later phases.
+## Simulated alert management
+
+Open an alert from Home, Alerts, or History to review its saved state.
+Open alerts can be acknowledged, assigned to a sample supervisor, given notes,
+and resolved with a required summary and confirmation. Acknowledgment and
+assignment leave the alert open; only resolution moves it to read-only History.
+History's All closed situations and Closed by a person filters include these
+resolutions; other outcomes remain empty. No telemetry repair, tonnage
+verification, real notification, or financial action occurs.
+
+Home, Alerts, and Reports count only open alerts. Resolving a tracking alert
+removes the map's simulated reporting-gap override, not a real GPS fault.
+Changes survive reopening; failed writes retain input for retry without
+publishing partial changes. Reset Demo clears notes, assignments, acknowledgments,
+and resolutions. Older snapshots without lifecycle fields remain readable.
+
+## Simulated fleet map
+
+The Map tab shows four sample vehicles on separate schematic route lanes
+(not geographic roads or distances). Tap a marker or a vehicle list entry for
+its driver, assigned/current or last completed trip, simulated speed, sample
+location, and reporting state. Open demo trip navigates to the existing trip
+details; Back returns to the map. Unassigned vehicles remain at a demo depot.
+
+Positions derive from saved stages: origin before transit, halfway In transit,
+80% Approaching, and destination when Arrived/Completed. Simulated moving speeds
+are 42 km/h in transit and 24 km/h approaching; stopped/idle vehicles show zero.
+An open Tracking alert overrides the vehicle status to Reporting gap and its
+speed to Unknown; the marker remains an illustrative stage-based position,
+not a recent telemetry fix. Advancing/completing a trip does not clear an alert.
+
+The map recomputes from shared saved data after creation, edits, progression,
+reset, and reopening. Active trips take precedence over a last completed trip.
+Original samples without a driver display that assignment as unknown.
+Maintenance is explicitly not evaluated. Persistent SIMULATED / NOT LIVE GPS
+labels appear on the map and vehicle sheets. No map SDK, tiles, location
+permissions, network requests, or timer-driven fake telemetry are used.
+
+## Demo reports and analytics
+
+Open **More > Reports > Demo analytics** (the default report section).
+Charts derive from the same saved trips and alerts used across the app:
+
+- **Trips by current status:** all saved records, including cancelled and exception trips.
+- **Simulated completions:** seven inclusive calendar days ending today in
+  Africa/Lagos (UTC+1), using recorded completion timestamps, not inferred stages.
+- **Vehicle workload:** active and completed trip assignments for each sample vehicle,
+  including unused vehicles. These are counts, not utilization or driving hours.
+- **Alert overview:** open, acknowledged-but-still-open, and resolved counts, plus
+  open alerts grouped by kind. Alerts on completed trips remain included.
+
+The vehicle selector scopes these charts and alerts through trip assignments.
+The shared operations totals above remain all-time and all-vehicle; Customer
+visits retains its separate date/asset filters and empty evidence state.
+Charts update after saved creation, editing, progression, resolution, and reset;
+reopening computes them from persisted records. Empty scopes display explicit
+zero-record states. Bars include text counts and accessibility labels.
+
+No geofence visits, tonnage, financial values, distances, or journey durations
+are invented. Site coordinates and real customer locations are not available.
+
+## Customer visit demo events
+
+Use **More > Demo controls > Customer visit demo events** to record a sample
+vehicle's arrival at Lekki Site or Apapa Terminal. The optional trip link only
+accepts an active trip assigned to that vehicle; otherwise the event is outside
+a trip. A vehicle cannot have more than one open sample visit at once. Record a
+departure to complete the visit, or explicitly close it as incomplete. The
+event's timestamp is recorded locally; nothing reads the device's location or
+claims a geofence event occurred.
+
+The Customer visits report filters by inclusive arrival dates in Africa/Lagos
+(UTC+1) and the selected sample vehicle scope. It reports completed visits,
+unique vehicles, sample sites/customers served, dwell for completed visits
+only, open and explicitly incomplete visits, visits linked to a trip, and
+daily arrivals/completions. Each manually entered arrival counts separately;
+the demo does not merge or infer visits. Reported “GPS reporting gaps” are Not
+evaluated. The site panel shows names only because no sample coordinates exist.
+
+Visit events are saved with the shared demo snapshot and survive reopening.
+Reset Demo or loading a guided scenario clears the visit events. Older saved
+snapshots without visit records remain readable. Write errors do not publish
+partial changes. These sample counts are not live location evidence, verified
+customer attendance, or operational reporting.
 
 All records are illustrative. Demo creation replaces the earlier production
 setup-blocker sheet; production prerequisites and permissions are not bypassed

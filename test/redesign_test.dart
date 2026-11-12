@@ -9,7 +9,7 @@ Future<void> openTab(WidgetTester tester, String label) async {
 
 Future<void> reveal(WidgetTester tester, Finder target) async {
   await tester.scrollUntilVisible(target, 200);
-  await Scrollable.ensureVisible(tester.element(target), alignment: 0.5);
+  await Scrollable.ensureVisible(tester.element(target.first), alignment: 0.5);
   await tester.pumpAndSettle();
 }
 
@@ -38,14 +38,13 @@ void main() {
       expect(tester.takeException(), isNull);
 
       await openTab(tester, 'Map');
-      expect(find.text('TRACKING NOT CONNECTED'), findsOneWidget);
+      expect(find.textContaining('SIMULATED — NOT LIVE GPS'), findsOneWidget);
       expect(find.text('LIVE TRACKING ACTIVE'), findsNothing);
       expect(tester.takeException(), isNull);
 
       await openTab(tester, 'Alerts');
       expect(find.text('Needs Action (2)'), findsOneWidget);
-      await reveal(tester, find.text('Reset Link'));
-      await reveal(tester, find.text('Verify Tonnage'));
+      await reveal(tester, find.byKey(const ValueKey('alert-card-alert-tracking')));
       await reveal(tester, find.text('UNDERSTANDING ALERTS'));
       expect(tester.takeException(), isNull);
 
@@ -75,22 +74,22 @@ void main() {
     expect(find.text('TR-2048'), findsOneWidget);
   });
 
-  testWidgets('alert actions never pretend to change operational data',
+  testWidgets('alert actions open explicitly simulated management',
       (tester) async {
     await tester.pumpWidget(const DumptrakPrototypeApp());
     await openTab(tester, 'Alerts');
-    for (final label in [
-      'Reset Link',
-      'Verify Tonnage',
-      'Reassign Supervisor',
-    ]) {
-      await reveal(tester, find.text(label));
-      await tester.tap(find.text(label));
+    for (final label in ['Manage demo alert', 'Assign demo supervisor']) {
+      final action = find.descendant(
+          of: find.byKey(ValueKey(label == 'Manage demo alert'
+              ? 'alert-card-alert-tracking'
+              : 'alert-card-alert-delivery')),
+          matching: find.text(label));
+      await reveal(tester, action);
+      await tester.tap(action);
       await tester.pumpAndSettle();
-      expect(find.textContaining('$label is not connected'), findsOneWidget);
-      expect(find.textContaining('No operational change was made.'),
-          findsOneWidget);
-      await tester.pump(const Duration(seconds: 5));
+      expect(find.text('Demo alert'), findsOneWidget);
+      expect(find.textContaining('No real operational action'), findsOneWidget);
+      await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
     }
     expect(tester.takeException(), isNull);

@@ -4,6 +4,9 @@ import 'demo_store.dart';
 import 'reports_page.dart';
 import 'trip_wizard.dart';
 import 'trip_details.dart';
+import 'fleet_map_page.dart';
+import 'alert_details.dart';
+import 'demo_visit_catalog.dart';
 
 const _blue = Color(0xFF0088FF);
 const _background = Color(0xFF080A0B);
@@ -170,6 +173,19 @@ class _SectionPreview {
   final String status;
 }
 
+enum _DemoRole {
+  administrator('Administrator', 'Ada Nwosu', 'Gonimos · Administration'),
+  dispatcher('Dispatcher', 'Samuel Onyenwe', 'Gonimos · Operations'),
+  supervisor('Supervisor', 'Femi Adewale', 'Gonimos · Site supervision'),
+  driver('Driver', 'Ayo Bello', 'Gonimos · Fleet operations');
+
+  const _DemoRole(this.label, this.name, this.organization);
+
+  final String label;
+  final String name;
+  final String organization;
+}
+
 class DumptrakPrototypeApp extends StatelessWidget {
   const DumptrakPrototypeApp({super.key, this.store});
 
@@ -262,16 +278,31 @@ class _OperationsShellState extends State<OperationsShell> {
   String _situationKind = 'All kinds';
   String _historyOutcome = 'All closed situations';
   int _intelligenceDays = 30;
+  String _visitVehicle = 'DT-07';
+  String _visitSite = 'Lekki Site';
+  String? _visitTripCode;
   late final DemoStore _demo = widget.store ?? DemoStore.memory();
+  _DemoRole _demoRole = _DemoRole.dispatcher;
+  DemoScenario _scenarioChoice = DemoScenario.normal;
 
   @override
   void initState() {
     super.initState();
+    _scenarioChoice = _demo.scenario;
     _demo.addListener(_refreshDemo);
   }
 
   void _refreshDemo() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    final activeTripCodes = _demo.activeTrips
+        .where((trip) => trip.vehicle == _visitVehicle)
+        .map((trip) => trip.code)
+        .toSet();
+    setState(() {
+      if (_visitTripCode != null && !activeTripCodes.contains(_visitTripCode)) {
+        _visitTripCode = null;
+      }
+    });
   }
 
   @override
@@ -478,7 +509,7 @@ class _OperationsShellState extends State<OperationsShell> {
           Expanded(
             child: MetricCard(
               label: 'NEEDS ACTION',
-              value: '${_demo.alerts.length}',
+              value: '${_demo.openAlerts.length}',
               icon: Icons.warning_amber_rounded,
               accent: _amber,
             ),
@@ -494,12 +525,13 @@ class _OperationsShellState extends State<OperationsShell> {
         ),
       ),
       const SizedBox(height: 10),
-      for (final alert in _demo.alerts) ...[
+      for (final alert in _demo.openAlerts) ...[
         AlertCard(
           title: alert.title,
           detail: alert.detail,
           severity: alert.severity,
           icon: _alertIcon(alert),
+          onTap: () => _openAlert(alert.id),
         ),
         const SizedBox(height: 10),
       ],
@@ -644,27 +676,20 @@ class _OperationsShellState extends State<OperationsShell> {
   }
 
   Widget _mapPage() {
-    return _pageScroll([
-      _pageHeading('Live Map', 'Fleet locations & active trip activity'),
-      const Center(
-        child: StatusPill(label: 'TRACKING NOT CONNECTED', color: _blue),
-      ),
-      const SizedBox(height: 28),
-      const Text(
-        'The map and live vehicle locations will appear here once the production map and telemetry services are connected.',
-        textAlign: TextAlign.center,
-        style: TextStyle(color: _muted, fontSize: 12, height: 1.6),
-      ),
-    ]);
+    return FleetMapPage(store: _demo);
   }
 
   Widget _alertsPage() {
-    final visibleAlerts = _demo.alerts
+    final visibleAlerts = _demo.openAlerts
         .where((alert) =>
             _situationKind == 'All kinds' || alert.kind == _situationKind)
         .toList();
     final needsAction = _alertSection == 'Needs action';
     final isHistory = _alertSection == 'History';
+    final history = _historyOutcome == 'All closed situations' ||
+            _historyOutcome == 'Closed by a person'
+        ? _demo.resolvedAlerts
+        : <DemoAlert>[];
     final explanation = switch (_alertSection) {
       'Needs action' =>
         'Current trips first, then completed work whose figures are held back for confirmation, then vehicle condition with no trip waiting. Within each group: critical, warning and information, then ungraded situations, then longest-waiting first. The order is provisional.\n\nDumptrak alerts, overdue maintenance positions and completion evidence refused by Settlement are included. FleetOps asset economics is shown to administrators only.',
@@ -690,7 +715,7 @@ class _OperationsShellState extends State<OperationsShell> {
               key: ValueKey('alert-section-$section'),
               showCheckmark: false,
               label: Text(switch (section) {
-                'Needs action' => 'Needs Action (${_demo.alerts.length})',
+                'Needs action' => 'Needs Action (${_demo.openAlerts.length})',
                 'Earlier detections' => 'Recent Detections',
                 'History' => 'System History',
                 _ => 'Info Records',
@@ -747,7 +772,7 @@ class _OperationsShellState extends State<OperationsShell> {
           Text(
             needsAction
                 ? '${visibleAlerts.length} open sample situations'
-                : '0 records',
+                : '${isHistory ? history.length : 0} records',
             style: const TextStyle(color: _muted, fontSize: 12),
           ),
           const SizedBox(height: 18),
@@ -767,6 +792,7 @@ class _OperationsShellState extends State<OperationsShell> {
             else
               for (final alert in visibleAlerts) ...[
                 AlertCard(
+                  key: ValueKey('alert-card-${alert.id}'),
                   title: alert.title,
                   detail: alert.detail,
                   severity: alert.severity,
@@ -774,7 +800,7 @@ class _OperationsShellState extends State<OperationsShell> {
                   reference:
                       '${_trips.firstWhere((trip) => trip.code == alert.tripCode).vehicle} · ${alert.tripCode}',
                   expanded: true,
-                  onAction: (action) => _showUnavailableAction(action),
+                  onAction: (_) => _openAlert(alert.id),
                 ),
                 const SizedBox(height: 10),
               ],
@@ -811,15 +837,30 @@ class _OperationsShellState extends State<OperationsShell> {
                 ],
               ),
             ],
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Text(
-                isHistory && _historyOutcome != 'All closed situations'
-                    ? 'Nothing recorded for "$_historyOutcome".'
-                    : 'Nothing recorded here.',
-                style: const TextStyle(color: _muted),
+            if (isHistory && history.isNotEmpty)
+              for (final alert in history) ...[
+                ListTile(
+                  key: ValueKey('history-alert-${alert.id}'),
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(alert.title),
+                  subtitle: Text(
+                    '${alert.tripCode} · Closed by a person\n${alert.resolution}',
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _openAlert(alert.id),
+                ),
+                const SizedBox(height: 8),
+              ]
+            else
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Text(
+                  isHistory && _historyOutcome != 'All closed situations'
+                      ? 'Nothing recorded for "$_historyOutcome".'
+                      : 'Nothing recorded here.',
+                  style: const TextStyle(color: _muted),
+                ),
               ),
-            ),
           ],
           const SizedBox(height: 8),
           PanelCard(
@@ -854,12 +895,10 @@ class _OperationsShellState extends State<OperationsShell> {
     ]);
   }
 
-  void _showUnavailableAction(String action) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          '$action is not connected in this prototype. No operational change was made.',
-        ),
+  void _openAlert(String id) {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (context) => AlertDetails(store: _demo, id: id),
       ),
     );
   }
@@ -886,6 +925,89 @@ class _OperationsShellState extends State<OperationsShell> {
         ),
       );
     }
+  }
+
+  Future<void> _closeIncompleteVisit(String id) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Close this sample visit as incomplete?'),
+        content: const Text(
+          'This records an incomplete demo event. It does not report a real site departure.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Close incomplete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await _saveDemo(
+      () => _demo.closeSiteVisitIncomplete(id, DateTime.now()),
+      'Sample visit closed as incomplete.',
+    );
+  }
+
+  Future<void> _loadGuidedScenario() async {
+    final scenario = _scenarioChoice;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Load ${scenario.label}?'),
+        content: const Text(
+          'This replaces the saved demo trips and alerts on this device with the selected sample scenario. This cannot be undone. Reset Demo restores the original samples. No production data is affected.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            key: const ValueKey('confirm-load-guided-scenario'),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Load scenario'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await _saveDemo(() async {
+      await _demo.loadScenario(scenario);
+      if (!mounted) return;
+      setState(() {
+        _scenarioChoice = scenario;
+        _selectedTripStatus = 'All statuses';
+        _alertSection = 'Needs action';
+        _situationKind = 'All kinds';
+        _historyOutcome = 'All closed situations';
+        _intelligenceDays = 30;
+        _tab = 0;
+        _morePage = null;
+      });
+    }, '${scenario.label} loaded and saved on this device.');
+  }
+
+  void _openWalkthroughScreen(String screen) {
+    final destination = switch (screen) {
+      'Home' => (0, null),
+      'Trips' => (1, null),
+      'Map' => (2, null),
+      'Alerts' => (3, null),
+      'Reports' => (4, 'Reports'),
+      _ => throw StateError('Unknown walkthrough screen: $screen'),
+    };
+    setState(() {
+      _tab = destination.$1;
+      _morePage = destination.$2;
+      if (screen == 'Trips') _selectedTripStatus = 'All statuses';
+      if (screen == 'Alerts') _alertSection = 'Needs action';
+    });
   }
 
   Widget _demoControls() {
@@ -922,6 +1044,180 @@ class _OperationsShellState extends State<OperationsShell> {
             label: const Text('Advance demo one step'),
           ),
           const SizedBox(height: 8),
+          const Divider(height: 28),
+          const SectionHeading(title: 'Customer visit demo events'),
+          const SizedBox(height: 8),
+          const Text(
+            'Record sample arrival and departure events manually. These do not use GPS, geofences, or real customer locations.',
+            style: TextStyle(color: _muted, fontSize: 12, height: 1.5),
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            key: ValueKey('visit-vehicle-$_visitVehicle'),
+            initialValue: _visitVehicle,
+            isExpanded: true,
+            decoration: const InputDecoration(labelText: 'Sample vehicle'),
+            items: [
+              for (final vehicle in DemoVisitCatalog.vehicles)
+                DropdownMenuItem(value: vehicle, child: Text(vehicle)),
+            ],
+            onChanged: _demo.saving
+                ? null
+                : (vehicle) {
+                    if (vehicle != null) {
+                      setState(() {
+                        _visitVehicle = vehicle;
+                        _visitTripCode = null;
+                      });
+                    }
+                  },
+          ),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(
+            key: ValueKey('visit-site-$_visitSite'),
+            initialValue: _visitSite,
+            isExpanded: true,
+            decoration: const InputDecoration(labelText: 'Sample site'),
+            items: [
+              for (final site in DemoVisitCatalog.sites)
+                DropdownMenuItem(value: site, child: Text(site)),
+            ],
+            onChanged: _demo.saving
+                ? null
+                : (site) {
+                    if (site != null) setState(() => _visitSite = site);
+                  },
+          ),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String?>(
+            key: ValueKey('visit-trip-${_visitTripCode ?? 'outside'}'),
+            initialValue: _visitTripCode,
+            isExpanded: true,
+            decoration: const InputDecoration(
+                labelText: 'Link to active trip (optional)'),
+            items: [
+              const DropdownMenuItem<String?>(
+                  value: null, child: Text('Outside trip')),
+              for (final trip in _demo.activeTrips
+                  .where((trip) => trip.vehicle == _visitVehicle))
+                DropdownMenuItem<String?>(
+                  value: trip.code,
+                  child: Text('${trip.code} · ${trip.status}'),
+                ),
+            ],
+            onChanged: _demo.saving
+                ? null
+                : (tripCode) => setState(() => _visitTripCode = tripCode),
+          ),
+          const SizedBox(height: 10),
+          FilledButton.icon(
+            key: const ValueKey('record-site-arrival'),
+            onPressed: _demo.saving
+                ? null
+                : () => _saveDemo(
+                      () => _demo.recordSiteArrival(
+                        vehicle: _visitVehicle,
+                        site: _visitSite,
+                        tripCode: _visitTripCode,
+                        now: DateTime.now(),
+                      ),
+                      'Sample site arrival recorded and saved.',
+                    ),
+            icon: const Icon(Icons.login_rounded),
+            label: const Text('Record demo arrival'),
+          ),
+          const SizedBox(height: 12),
+          if (_demo.openVisits.isEmpty)
+            const Text('No open sample site visits.')
+          else
+            for (final visit in _demo.openVisits) ...[
+              const Divider(height: 20),
+              Text(
+                '${visit.vehicle} · ${visit.site}\n${visit.customer} · ${visit.tripCode ?? 'Outside trip'}',
+                style: const TextStyle(fontSize: 13, height: 1.5),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton(
+                key: ValueKey('depart-site-${visit.id}'),
+                onPressed: _demo.saving
+                    ? null
+                    : () => _saveDemo(
+                          () => _demo.recordSiteDeparture(
+                              visit.id, DateTime.now()),
+                          'Sample site departure recorded.',
+                        ),
+                child: const Text('Record demo departure'),
+              ),
+              TextButton(
+                key: ValueKey('incomplete-site-${visit.id}'),
+                onPressed:
+                    _demo.saving ? null : () => _closeIncompleteVisit(visit.id),
+                child: const Text('Close as incomplete'),
+              ),
+            ],
+          const SizedBox(height: 8),
+          const Divider(height: 28),
+          const SectionHeading(title: 'Guided scenarios'),
+          const SizedBox(height: 8),
+          const Text(
+            'Choose a fixed sample walkthrough. Loading it replaces saved demo changes on this device; Reset Demo restores the original samples.',
+            style: TextStyle(color: _muted, fontSize: 12, height: 1.5),
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<DemoScenario>(
+            key: ValueKey('guided-scenario-${_scenarioChoice.name}'),
+            initialValue: _scenarioChoice,
+            isExpanded: true,
+            decoration: const InputDecoration(labelText: 'Scenario'),
+            items: [
+              for (final scenario in DemoScenario.values)
+                DropdownMenuItem(
+                  value: scenario,
+                  child: Text(scenario.label),
+                ),
+            ],
+            onChanged: _demo.saving
+                ? null
+                : (scenario) {
+                    if (scenario != null) {
+                      setState(() => _scenarioChoice = scenario);
+                    }
+                  },
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _scenarioChoice.summary,
+            key: const ValueKey('guided-scenario-summary'),
+            style: const TextStyle(color: _muted, fontSize: 12, height: 1.5),
+          ),
+          const SizedBox(height: 8),
+          FilledButton.icon(
+            key: const ValueKey('load-guided-scenario'),
+            onPressed: _demo.saving ? null : _loadGuidedScenario,
+            icon: const Icon(Icons.play_arrow_rounded),
+            label: Text('Load ${_scenarioChoice.label}'),
+          ),
+          const SizedBox(height: 8),
+          for (var index = 0;
+              index < _scenarioChoice.walkthrough.length;
+              index++)
+            ListTile(
+              key: ValueKey('walkthrough-step-$index'),
+              contentPadding: EdgeInsets.zero,
+              leading: CircleAvatar(
+                radius: 14,
+                child:
+                    Text('${index + 1}', style: const TextStyle(fontSize: 12)),
+              ),
+              title: Text(_scenarioChoice.walkthrough[index].screen),
+              subtitle: Text(_scenarioChoice.walkthrough[index].instruction),
+              trailing: TextButton(
+                onPressed: () => _openWalkthroughScreen(
+                    _scenarioChoice.walkthrough[index].screen),
+                child: const Text('Open'),
+              ),
+            ),
+          const SizedBox(height: 8),
           OutlinedButton.icon(
             key: const ValueKey('reset-demo'),
             onPressed: _demo.saving
@@ -933,6 +1229,9 @@ class _OperationsShellState extends State<OperationsShell> {
                       if (!mounted) return;
                       setState(() {
                         _selectedTripStatus = 'All statuses';
+                        _scenarioChoice = DemoScenario.normal;
+                        _tab = 4;
+                        _morePage = null;
                         _alertSection = 'Needs action';
                         _situationKind = 'All kinds';
                         _historyOutcome = 'All closed situations';
@@ -1008,6 +1307,7 @@ class _OperationsShellState extends State<OperationsShell> {
       const SizedBox(height: 16),
       for (final item in items) ...[
         Card(
+          key: ValueKey('more-item-${item.title}'),
           child: ListTile(
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
@@ -1040,16 +1340,42 @@ class _OperationsShellState extends State<OperationsShell> {
         ),
       ),
       const SizedBox(height: 12),
-      const PanelCard(
+      PanelCard(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Samuel Onyenwe',
-                style: TextStyle(fontWeight: FontWeight.w700)),
-            SizedBox(height: 4),
-            Text('Gonimos · Operations', style: TextStyle(color: _muted)),
-            SizedBox(height: 16),
-            Text(
+            const Text('DEMO ACCOUNT PERSPECTIVE',
+                style: TextStyle(
+                    color: _muted,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.6)),
+            const SizedBox(height: 10),
+            Text(_demoRole.name,
+                style: const TextStyle(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 4),
+            Text(_demoRole.organization, style: const TextStyle(color: _muted)),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<_DemoRole>(
+              key: const ValueKey('demo-role-switcher'),
+              initialValue: _demoRole,
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Switch demo role'),
+              items: [
+                for (final role in _DemoRole.values)
+                  DropdownMenuItem(value: role, child: Text(role.label)),
+              ],
+              onChanged: (role) {
+                if (role != null) setState(() => _demoRole = role);
+              },
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Display-only sample perspective. No permissions, account access, or actions are changed.',
+              style: TextStyle(color: _muted, fontSize: 12, height: 1.5),
+            ),
+            const SizedBox(height: 16),
+            const Text(
               'GEUTech sign-in linking is not connected in this prototype.',
               style: TextStyle(color: _muted, fontSize: 12, height: 1.5),
             ),
@@ -1067,7 +1393,8 @@ class _OperationsShellState extends State<OperationsShell> {
       return ReportsPage(
         onBack: () => setState(() => _morePage = null),
         trips: _demo.trips,
-        openAlerts: _demo.alerts.length,
+        alerts: _demo.alerts,
+        visits: _demo.visits,
       );
     }
     if (title == 'Intelligence') return _intelligencePage();
@@ -1513,7 +1840,9 @@ class _OperationsShellState extends State<OperationsShell> {
     if (trip == null || !mounted) return;
     setState(() => _selectedTripStatus = 'All statuses');
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('${trip.code} created as Planned. Demo saved locally.')),
+      SnackBar(
+          content:
+              Text('${trip.code} created as Planned. Demo saved locally.')),
     );
   }
 
@@ -1707,6 +2036,7 @@ class AlertCard extends StatelessWidget {
     this.expanded = false,
     this.onAction,
     this.reference,
+    this.onTap,
   });
 
   final String title;
@@ -1716,74 +2046,77 @@ class AlertCard extends StatelessWidget {
   final bool expanded;
   final ValueChanged<String>? onAction;
   final String? reference;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final color = severity == 'Warning' ? _amber : _blue;
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(15),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(15),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(icon, color: color, size: 19),
                   ),
-                  child: Icon(icon, color: color, size: 19),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(title,
-                          style: const TextStyle(
-                              fontSize: 14, fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 5),
-                      Text(
-                        expanded
-                            ? (reference ?? 'SIMULATED INCIDENT')
-                            : detail,
-                        style: TextStyle(
-                          color: _muted,
-                          fontSize: expanded ? 10 : 12,
-                          height: 1.5,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(title,
+                            style: const TextStyle(
+                                fontSize: 14, fontWeight: FontWeight.w700)),
+                        const SizedBox(height: 5),
+                        Text(
+                          expanded
+                              ? (reference ?? 'SIMULATED INCIDENT')
+                              : detail,
+                          style: TextStyle(
+                            color: _muted,
+                            fontSize: expanded ? 10 : 12,
+                            height: 1.5,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(width: 6),
-                StatusPill(label: severity, color: color),
-              ],
-            ),
-            if (expanded) ...[
-              const SizedBox(height: 16),
-              Text(detail,
-                  style: const TextStyle(
-                      color: _muted, fontSize: 12, height: 1.6)),
-              const SizedBox(height: 20),
-              FilledButton(
-                onPressed: () => onAction?.call(
-                    severity == 'Warning' ? 'Reset Link' : 'Verify Tonnage'),
-                child: Text(
-                    severity == 'Warning' ? 'Reset Link' : 'Verify Tonnage'),
+                  const SizedBox(width: 6),
+                  StatusPill(label: severity, color: color),
+                ],
               ),
-              if (severity != 'Warning')
-                TextButton(
-                  onPressed: () => onAction?.call('Reassign Supervisor'),
-                  child: const Text('Reassign Supervisor',
-                      style: TextStyle(color: _muted, fontSize: 12)),
+              if (expanded) ...[
+                const SizedBox(height: 16),
+                Text(detail,
+                    style: const TextStyle(
+                        color: _muted, fontSize: 12, height: 1.6)),
+                const SizedBox(height: 20),
+                FilledButton(
+                  onPressed: () => onAction?.call(
+                      severity == 'Warning' ? 'Reset Link' : 'Verify Tonnage'),
+                  child: const Text('Manage demo alert'),
                 ),
+                if (severity != 'Warning')
+                  TextButton(
+                    onPressed: () => onAction?.call('Reassign Supervisor'),
+                    child: const Text('Assign demo supervisor',
+                        style: TextStyle(color: _muted, fontSize: 12)),
+                  ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -1822,118 +2155,118 @@ class TripCard extends StatelessWidget {
       ),
       child: InkWell(
         onTap: onTap,
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(15),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                        child: Text(
-                      trip.code,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    )),
-                    StatusPill(label: trip.status, color: color),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                if (showProgress) ...[
-                  if (trip.project != null) ...[
-                    Text('Project: ${trip.project}',
-                        style: const TextStyle(color: _muted, fontSize: 12)),
-                    const SizedBox(height: 8),
-                    Text('Driver: ${trip.driver}',
-                        style: const TextStyle(color: _muted, fontSize: 12)),
-                    const SizedBox(height: 14),
-                  ],
-                  _TripStop(label: 'ORIGIN', name: stops.first, color: color),
-                  const SizedBox(height: 14),
-                  _TripStop(
-                      label: 'DESTINATION', name: stops.last, color: _blue),
-                  const SizedBox(height: 20),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(15),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
-                        child: _TripFact(
-                          label: 'VEHICLE',
-                          value: trip.vehicle,
-                          icon: Icons.local_shipping_rounded,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _TripFact(
-                          label: 'MATERIAL',
-                          value: trip.material,
-                          icon: Icons.category_rounded,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Wrap(
-                    alignment: WrapAlignment.spaceBetween,
-                    spacing: 16,
-                    runSpacing: 6,
-                    children: [
-                      Text(
-                        trip.status == 'At origin'
-                            ? 'LOADING STATUS'
-                            : 'PROGRESS',
+                          child: Text(
+                        trip.code,
                         style: const TextStyle(
-                            color: _muted,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700),
-                      ),
-                      Text(trip.eta,
-                          style: TextStyle(color: color, fontSize: 11)),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      )),
+                      StatusPill(label: trip.status, color: color),
                     ],
                   ),
-                ] else ...[
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Icon(Icons.local_shipping_outlined,
-                          color: _blue, size: 19),
-                      const SizedBox(width: 9),
-                      Expanded(
-                        child: Text(
-                          trip.route,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            height: 1.4,
+                  const SizedBox(height: 12),
+                  if (showProgress) ...[
+                    if (trip.project != null) ...[
+                      Text('Project: ${trip.project}',
+                          style: const TextStyle(color: _muted, fontSize: 12)),
+                      const SizedBox(height: 8),
+                      Text('Driver: ${trip.driver}',
+                          style: const TextStyle(color: _muted, fontSize: 12)),
+                      const SizedBox(height: 14),
+                    ],
+                    _TripStop(label: 'ORIGIN', name: stops.first, color: color),
+                    const SizedBox(height: 14),
+                    _TripStop(
+                        label: 'DESTINATION', name: stops.last, color: _blue),
+                    const SizedBox(height: 20),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: _TripFact(
+                            label: 'VEHICLE',
+                            value: trip.vehicle,
+                            icon: Icons.local_shipping_rounded,
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 9),
-                  Text(
-                    '${trip.vehicle} · ${trip.material} · ${trip.eta}',
-                    style: const TextStyle(
-                        color: _muted, fontSize: 11, height: 1.5),
-                  ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _TripFact(
+                            label: 'MATERIAL',
+                            value: trip.material,
+                            icon: Icons.category_rounded,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Wrap(
+                      alignment: WrapAlignment.spaceBetween,
+                      spacing: 16,
+                      runSpacing: 6,
+                      children: [
+                        Text(
+                          trip.status == 'At origin'
+                              ? 'LOADING STATUS'
+                              : 'PROGRESS',
+                          style: const TextStyle(
+                              color: _muted,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700),
+                        ),
+                        Text(trip.eta,
+                            style: TextStyle(color: color, fontSize: 11)),
+                      ],
+                    ),
+                  ] else ...[
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.local_shipping_outlined,
+                            color: _blue, size: 19),
+                        const SizedBox(width: 9),
+                        Expanded(
+                          child: Text(
+                            trip.route,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 9),
+                    Text(
+                      '${trip.vehicle} · ${trip.material} · ${trip.eta}',
+                      style: const TextStyle(
+                          color: _muted, fontSize: 11, height: 1.5),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
-          ),
-          if (showProgress)
-            LinearProgressIndicator(
-              value: trip.progress,
-              minHeight: 4,
-              backgroundColor: _surfaceRaised,
-              color: color,
-            ),
-        ],
-      ),
+            if (showProgress)
+              LinearProgressIndicator(
+                value: trip.progress,
+                minHeight: 4,
+                backgroundColor: _surfaceRaised,
+                color: color,
+              ),
+          ],
+        ),
       ),
     );
   }
