@@ -25,13 +25,13 @@ void main() {
     await tester.pumpWidget(const DumptrakPrototypeApp());
     await tester.tap(find.text('Trips').last);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('New trip'));
+    await tester.tap(find.byTooltip('New trip'));
     await tester.pumpAndSettle();
 
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
     expect(find.text('Before you can create a trip'), findsNothing);
-    expect(find.text('New trip'), findsOneWidget);
+    expect(find.byTooltip('New trip'), findsOneWidget);
     expect(find.text('Operations overview'), findsNothing);
 
     await tester.binding.handlePopRoute();
@@ -138,6 +138,10 @@ void main() {
         findsOneWidget);
 
     for (final section in ['Earlier detections', 'Informational records']) {
+      await tester.scrollUntilVisible(
+        find.byKey(ValueKey('alert-section-$section')),
+        -250,
+      );
       await Scrollable.ensureVisible(
         tester.element(find.byKey(ValueKey('alert-section-$section'))),
         alignment: 0.5,
@@ -167,7 +171,7 @@ void main() {
 
     await tester.tap(find.text('Trips').last);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('New trip'));
+    await tester.tap(find.byTooltip('New trip'));
     await tester.pumpAndSettle();
 
     expect(find.text('Before you can create a trip'), findsOneWidget);

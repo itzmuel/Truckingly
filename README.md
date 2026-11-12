@@ -9,7 +9,8 @@ backend, map provider, telemetry, identity provider, or settlement services.
 - **Home:** operational metrics, sample alerts, active trips, and a fleet insight.
 - **Trips:** sample trip cards, status filters, and a setup-blocker sheet for
   project/site prerequisites and recommended trip records.
-- **Map:** illustrative route and vehicle markers, explicitly marked as not live.
+- **Map:** minimal map workspace with an explicit tracking-not-connected state;
+  no fabricated live locations.
 - **Alerts:** four selectable sections (Needs action, Earlier detections,
   History, and Informational records), an optional situation-kind filter,
   history outcome filtering, and expandable closure guidance. Needs action
@@ -33,6 +34,14 @@ backend, map provider, telemetry, identity provider, or settlement services.
 Android system Back (including the back gesture) closes dialogs and sheets
 first, returns More detail screens to More, and returns main tabs to Home.
 Back from Home allows the app to exit.
+
+The five main screens follow the supplied UX Pilot redesign: near-black
+surfaces, blue active-tab indicators, compact status badges, rounded cards,
+trip origin/destination and vehicle/material fields, and alert action cards.
+Existing filters, trip setup prerequisites, and More detail screens remain
+available. Alert action buttons explain that no operational change was made.
+The trip archive shortcut selects the Completed status. Sample records are
+not persisted or synchronized; the map does not claim that tracking is live.
 
 All records are illustrative. Trip creation is blocked in this prototype to
 reflect the required project and site setup; the sheet explains the

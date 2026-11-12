@@ -13,7 +13,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(ReportsPage), findsOneWidget);
     expect(find.text('Presentation prototype'), findsOneWidget);
-    await tester.tap(find.widgetWithText(TextButton, 'More'));
+    await tester.tap(find.widgetWithText(TextButton, 'More').first);
     await tester.pumpAndSettle();
     expect(find.byType(ReportsPage), findsNothing);
     expect(find.text('Tools and account'), findsOneWidget);

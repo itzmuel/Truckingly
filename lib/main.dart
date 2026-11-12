@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 
 import 'reports_page.dart';
 
-const _blue = Color(0xFF1687F8);
-const _background = Color(0xFF111210);
-const _surface = Color(0xFF1D1E1C);
-const _surfaceRaised = Color(0xFF282926);
-const _border = Color(0xFF343632);
-const _muted = Color(0xFF9A9D98);
-const _green = Color(0xFF65D6A0);
-const _amber = Color(0xFFFFC45C);
+const _blue = Color(0xFF0088FF);
+const _background = Color(0xFF080A0B);
+const _surface = Color(0xFF171719);
+const _surfaceRaised = Color(0xFF28282B);
+const _border = Color(0xFF29292C);
+const _muted = Color(0xFF9B9DA5);
+const _green = Color(0xFF22C55E);
+const _amber = Color(0xFFFFAA00);
 
 void main() {
   runApp(const DumptrakPrototypeApp());
@@ -64,9 +64,33 @@ class DumptrakPrototypeApp extends StatelessWidget {
         cardTheme: CardThemeData(
           color: _surface,
           elevation: 0,
+          margin: EdgeInsets.zero,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
             side: const BorderSide(color: _border),
+          ),
+        ),
+        filledButtonTheme: FilledButtonThemeData(
+          style: FilledButton.styleFrom(
+            backgroundColor: _blue,
+            foregroundColor: Colors.white,
+            minimumSize: const Size(48, 48),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+        chipTheme: ChipThemeData(
+          backgroundColor: _surfaceRaised,
+          selectedColor: _blue,
+          side: BorderSide.none,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          labelStyle: const TextStyle(
+            color: Colors.white,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
           ),
         ),
         inputDecorationTheme: InputDecorationTheme(
@@ -190,9 +214,7 @@ class _OperationsShellState extends State<OperationsShell> {
 
   List<Trip> get _visibleTrips {
     if (_selectedTripStatus == 'All statuses') return _trips;
-    return _trips
-        .where((trip) => trip.status == _selectedTripStatus)
-        .toList();
+    return _trips.where((trip) => trip.status == _selectedTripStatus).toList();
   }
 
   @override
@@ -210,65 +232,70 @@ class _OperationsShellState extends State<OperationsShell> {
         });
       },
       child: Scaffold(
-      appBar: AppBar(
-        toolbarHeight: 62,
-        titleSpacing: 20,
-        title: Row(
-          children: [
-            const Icon(Icons.local_shipping_outlined, color: _blue, size: 23),
-            const SizedBox(width: 9),
-            Flexible(
-              child: Text(
-                'DUMPTRAK',
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      letterSpacing: 1.4,
-                      fontWeight: FontWeight.w800,
-                    ),
-                overflow: TextOverflow.ellipsis,
+        appBar: AppBar(
+          toolbarHeight: 62,
+          titleSpacing: 20,
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(5),
+                decoration: BoxDecoration(
+                  color: _blue,
+                  borderRadius: BorderRadius.circular(7),
+                ),
+                child: const Icon(
+                  Icons.local_shipping_rounded,
+                  color: Colors.white,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 9),
+              Flexible(
+                child: Text(
+                  'DUMPTRAK',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        letterSpacing: 0.6,
+                        fontWeight: FontWeight.w800,
+                      ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            Container(
+              margin: const EdgeInsets.only(right: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: _blue.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Text(
+                'DEMO',
+                style: TextStyle(
+                  color: _blue,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.8,
+                ),
               ),
             ),
           ],
         ),
-        actions: [
-          Container(
-            margin: const EdgeInsets.only(right: 16),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: _blue.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: const Text(
-              'DEMO',
-              style: TextStyle(
-                color: _blue,
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.8,
-              ),
-            ),
-          ),
-        ],
-      ),
-      body: SafeArea(
-        top: false,
-        child: _buildPage(),
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _tab,
-        onDestinationSelected: (index) {
-          setState(() {
-            _tab = index;
-            _morePage = null;
-          });
-        },
-        destinations: [
-          for (final item in _tabs)
-            NavigationDestination(
-              icon: Icon(item.icon),
-              label: item.label,
-            ),
-        ],
-      ),
+        body: SafeArea(
+          top: false,
+          child: _buildPage(),
+        ),
+        bottomNavigationBar: _BottomTabs(
+          selectedIndex: _tab,
+          items: _tabs,
+          onSelected: (index) {
+            setState(() {
+              _tab = index;
+              _morePage = null;
+            });
+          },
+        ),
       ),
     );
   }
@@ -293,7 +320,7 @@ class _OperationsShellState extends State<OperationsShell> {
   Widget _pageScroll(List<Widget> children) {
     return ListView(
       key: ValueKey('page-$_tab-${_morePage ?? 'main'}'),
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
       children: children,
     );
   }
@@ -419,22 +446,26 @@ class _OperationsShellState extends State<OperationsShell> {
         visibleTrips.length == 1 ? '1 trip' : '${visibleTrips.length} trips';
 
     return _pageScroll([
-      _pageHeading('Trips', 'Monitor material movement'),
-      const DemoNotice(compact: true),
-      const SizedBox(height: 14),
-      Card(
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              DropdownButtonFormField<String>(
+      _pageHeading('Trips', 'Monitor real-time material movement'),
+      const DemoNotice(
+        title: 'PROTOTYPE ENVIRONMENT',
+        message:
+            'Currently using sample data. Live operational connection is pending configuration.',
+      ),
+      const SizedBox(height: 18),
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: KeyedSubtree(
+              key: ValueKey('trip-filter-$_selectedTripStatus'),
+              child: DropdownButtonFormField<String>(
                 key: const ValueKey('trip-status-filter'),
                 initialValue: _selectedTripStatus,
                 isExpanded: true,
                 decoration: const InputDecoration(
                   labelText: 'Trip status',
-                  prefixIcon: Icon(Icons.filter_list_rounded),
+                  fillColor: _surface,
                 ),
                 items: [
                   for (final status in _tripStatuses)
@@ -446,33 +477,33 @@ class _OperationsShellState extends State<OperationsShell> {
                   }
                 },
               ),
-              const SizedBox(height: 8),
-              const Text(
-                'Optional · Show only trips in one status.',
-                style: TextStyle(color: _muted, fontSize: 12),
-              ),
-            ],
+            ),
           ),
+          const SizedBox(width: 10),
+          IconButton.filled(
+            tooltip: 'New trip',
+            onPressed: _showCreateTrip,
+            style: IconButton.styleFrom(
+              backgroundColor: _blue,
+              foregroundColor: Colors.white,
+              minimumSize: const Size(54, 56),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            icon: const Icon(Icons.add_rounded),
+          ),
+        ],
+      ),
+      const SizedBox(height: 16),
+      SectionHeading(
+        title: 'ACTIVE OPERATIONS (${visibleTrips.length})',
+        action: TextButton(
+          onPressed: () => setState(() => _selectedTripStatus = 'Completed'),
+          child: const Text('View Archive'),
         ),
       ),
-      const SizedBox(height: 12),
-      FilledButton.icon(
-        onPressed: _showCreateTrip,
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('New trip'),
-        style: FilledButton.styleFrom(
-          minimumSize: const Size.fromHeight(50),
-          backgroundColor: _blue,
-          foregroundColor: Colors.white,
-        ),
-      ),
-      const SizedBox(height: 18),
-      Text(
-        _selectedTripStatus == 'All statuses'
-            ? tripCountLabel
-            : '$tripCountLabel · $_selectedTripStatus',
-        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-      ),
+      Text(tripCountLabel, style: const TextStyle(color: _muted, fontSize: 12)),
       const SizedBox(height: 12),
       if (visibleTrips.isEmpty)
         EmptyState(
@@ -489,108 +520,26 @@ class _OperationsShellState extends State<OperationsShell> {
         ],
       const SizedBox(height: 4),
       const Text(
-        'Trip creation is stored on this device for the demo only.',
-        style: TextStyle(color: _muted, fontSize: 12),
+        'Sample data only. Changes are not persisted.\nCloud synchronization is not connected.',
+        textAlign: TextAlign.center,
+        style: TextStyle(color: _muted, fontSize: 11, height: 1.5),
       ),
     ]);
   }
 
   Widget _mapPage() {
     return _pageScroll([
-      _pageHeading('Live map', 'Fleet locations and trip activity'),
-      const DemoNotice(compact: true),
-      const SizedBox(height: 14),
-      ClipRRect(
-        borderRadius: BorderRadius.circular(18),
-        child: SizedBox(
-          height: 330,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              CustomPaint(painter: _DemoMapPainter()),
-              Positioned(
-                top: 16,
-                left: 16,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                  decoration: BoxDecoration(
-                    color: _background.withValues(alpha: 0.88),
-                    borderRadius: BorderRadius.circular(9),
-                    border: Border.all(color: _border),
-                  ),
-                  child: const Text(
-                    'DEMO MAP · NOT LIVE',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.6,
-                    ),
-                  ),
-                ),
-              ),
-              const Positioned(
-                left: 60,
-                top: 105,
-                child: MapVehiclePin(label: 'DT-07'),
-              ),
-              const Positioned(
-                right: 56,
-                bottom: 76,
-                child: MapVehiclePin(label: 'DT-12'),
-              ),
-              Positioned(
-                right: 14,
-                top: 14,
-                child: Column(
-                  children: [
-                    _mapControl(Icons.add_rounded),
-                    const SizedBox(height: 6),
-                    _mapControl(Icons.remove_rounded),
-                  ],
-                ),
-              ),
-              Positioned(
-                left: 16,
-                bottom: 15,
-                child: Text(
-                  'Illustrative route · Lagos',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.76),
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
+      _pageHeading('Live Map', 'Fleet locations & active trip activity'),
+      const Center(
+        child: StatusPill(label: 'TRACKING NOT CONNECTED', color: _blue),
       ),
-      const SizedBox(height: 22),
-      const SectionHeading(title: 'Vehicles on active trips'),
-      const SizedBox(height: 10),
-      for (final trip in _trips) ...[
-        TripCard(trip: trip),
-        const SizedBox(height: 10),
-      ],
-      const SizedBox(height: 8),
+      const SizedBox(height: 28),
       const Text(
-        'Connect the production map and telemetry feed to show real vehicle locations.',
-        style: TextStyle(color: _muted, fontSize: 12, height: 1.5),
+        'The map and live vehicle locations will appear here once the production map and telemetry services are connected.',
+        textAlign: TextAlign.center,
+        style: TextStyle(color: _muted, fontSize: 12, height: 1.6),
       ),
     ]);
-  }
-
-  Widget _mapControl(IconData icon) {
-    return Container(
-      width: 38,
-      height: 38,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Icon(icon, color: _background),
-    );
   }
 
   Widget _alertsPage() {
@@ -614,10 +563,8 @@ class _OperationsShellState extends State<OperationsShell> {
     return _pageScroll([
       _pageHeading(
         'Alerts',
-        'Open situations, earlier detections and records kept alongside them.',
+        'Real-time incident detection & fleet status',
       ),
-      const DemoNotice(compact: true),
-      const SizedBox(height: 16),
       Wrap(
         spacing: 8,
         runSpacing: 8,
@@ -625,105 +572,178 @@ class _OperationsShellState extends State<OperationsShell> {
           for (final section in _alertSections)
             ChoiceChip(
               key: ValueKey('alert-section-$section'),
-              label: Text(section),
+              showCheckmark: false,
+              label: Text(switch (section) {
+                'Needs action' => 'Needs Action (2)',
+                'Earlier detections' => 'Recent Detections',
+                'History' => 'System History',
+                _ => 'Info Records',
+              }),
               selected: _alertSection == section,
               onSelected: (_) => setState(() => _alertSection = section),
             ),
         ],
       ),
       const SizedBox(height: 16),
-      PanelCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SectionHeading(title: _alertSection),
-            const SizedBox(height: 6),
-            Text(
-              needsAction ? '${visibleAlerts.length} open sample situations' : '0 records',
-              style: const TextStyle(color: _muted, fontSize: 12),
-            ),
-            const SizedBox(height: 18),
-            if (needsAction) ...[
+      const DemoNotice(
+        message:
+            'Operating in simulation mode. All incidents are sample records and do not reflect real-time physical assets.',
+        neutral: true,
+      ),
+      const SizedBox(height: 20),
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SectionHeading(
+            title: needsAction ? 'Pending Actions' : _alertSection,
+            action: needsAction
+                ? PopupMenuButton<String>(
+                    key: const ValueKey('situation-kind-filter'),
+                    tooltip: 'Filter incidents by kind',
+                    initialValue: _situationKind,
+                    onSelected: (value) =>
+                        setState(() => _situationKind = value),
+                    itemBuilder: (context) => [
+                      for (final kind in _situationKinds)
+                        PopupMenuItem(value: kind, child: Text(kind)),
+                    ],
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 14),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _situationKind == 'All kinds'
+                                ? 'All incidents'
+                                : 'Filtered',
+                            style: const TextStyle(color: _blue, fontSize: 12),
+                          ),
+                          const Icon(Icons.expand_more_rounded,
+                              size: 16, color: _blue),
+                        ],
+                      ),
+                    ),
+                  )
+                : null,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            needsAction
+                ? '${visibleAlerts.length} open sample situations'
+                : '0 records',
+            style: const TextStyle(color: _muted, fontSize: 12),
+          ),
+          const SizedBox(height: 18),
+          if (needsAction) ...[
+            if (_situationKind != 'All kinds') ...[
+              Text('Kind: $_situationKind',
+                  style: const TextStyle(color: _muted, fontSize: 12)),
+              const SizedBox(height: 12),
+            ],
+            if (visibleAlerts.isEmpty)
+              const EmptyState(
+                icon: Icons.help_outline_rounded,
+                title: 'No situations match this kind',
+                detail:
+                    'Try All kinds to see the sample action queue. Missing reports are not proof that vehicles are operating normally.',
+              )
+            else
+              for (final alert in visibleAlerts) ...[
+                AlertCard(
+                  title: alert.title,
+                  detail: alert.detail,
+                  severity: alert.severity,
+                  icon: alert.icon,
+                  expanded: true,
+                  onAction: (action) => _showUnavailableAction(action),
+                ),
+                const SizedBox(height: 10),
+              ],
+          ] else ...[
+            if (isHistory) ...[
               _alertFilter(
-                filterKey: 'situation-kind-filter',
-                label: 'Kind of situation (optional)',
-                value: _situationKind,
-                options: _situationKinds,
-                onChanged: (value) => setState(() => _situationKind = value),
+                filterKey: 'history-outcome-filter',
+                label: 'How it left the queue (optional)',
+                value: _historyOutcome,
+                options: _historyOutcomes,
+                onChanged: (value) => setState(() => _historyOutcome = value),
               ),
               const SizedBox(height: 8),
               const Text(
-                'Shows one kind of situation, such as delivery progress or maintenance. Filtering preserves the queue order.',
+                'Shows how situations left the queue: superseded when their trip ended, closed by a person, or cleared by new evidence.',
                 style: TextStyle(color: _muted, fontSize: 12, height: 1.5),
               ),
-              const SizedBox(height: 16),
-              if (visibleAlerts.isEmpty)
-                const EmptyState(
-                  icon: Icons.help_outline_rounded,
-                  title: 'No situations match this kind',
-                  detail: 'Try All kinds to see the sample action queue. Missing reports are not proof that vehicles are operating normally.',
-                )
-              else
-                for (final alert in visibleAlerts) ...[
-                  AlertCard(
-                    title: alert.title,
-                    detail: alert.detail,
-                    severity: alert.severity,
-                    icon: alert.icon,
-                  ),
-                  const SizedBox(height: 10),
-                ],
-            ] else ...[
-              if (isHistory) ...[
-                _alertFilter(
-                  filterKey: 'history-outcome-filter',
-                  label: 'How it left the queue (optional)',
-                  value: _historyOutcome,
-                  options: _historyOutcomes,
-                  onChanged: (value) => setState(() => _historyOutcome = value),
+              const ExpansionTile(
+                key: PageStorageKey('history-guidance'),
+                tilePadding: EdgeInsets.zero,
+                title: Text(
+                  'More about how it left the queue',
+                  style: TextStyle(fontSize: 13),
                 ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Shows how situations left the queue: superseded when their trip ended, closed by a person, or cleared by new evidence.',
-                  style: TextStyle(color: _muted, fontSize: 12, height: 1.5),
-                ),
-                const ExpansionTile(
-                  key: PageStorageKey('history-guidance'),
-                  tilePadding: EdgeInsets.zero,
-                  title: Text(
-                    'More about how it left the queue',
-                    style: TextStyle(fontSize: 13),
-                  ),
-                  children: [
-                    Padding(
-                      padding: EdgeInsets.only(bottom: 16),
-                      child: Text(
-                        'Superseded situations concerned a trip that was completed or cancelled. Closed situations were dealt with by a person; this does not say the condition cleared. Cleared situations ended because evidence changed, such as a tracker reporting again or tonnes being confirmed. Closed earlier means the way it ended was not recorded.',
-                        style: TextStyle(color: _muted, fontSize: 12, height: 1.5),
-                      ),
+                children: [
+                  Padding(
+                    padding: EdgeInsets.only(bottom: 16),
+                    child: Text(
+                      'Superseded situations concerned a trip that was completed or cancelled. Closed situations were dealt with by a person; this does not say the condition cleared. Cleared situations ended because evidence changed, such as a tracker reporting again or tonnes being confirmed. Closed earlier means the way it ended was not recorded.',
+                      style:
+                          TextStyle(color: _muted, fontSize: 12, height: 1.5),
                     ),
-                  ],
-                ),
-              ],
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                child: Text(
-                  isHistory && _historyOutcome != 'All closed situations'
-                      ? 'Nothing recorded for "$_historyOutcome".'
-                      : 'Nothing recorded here.',
-                  style: const TextStyle(color: _muted),
-                ),
+                  ),
+                ],
               ),
             ],
-            const Divider(color: _border, height: 28),
-            Text(
-              explanation,
-              style: const TextStyle(color: _muted, fontSize: 12, height: 1.5),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Text(
+                isHistory && _historyOutcome != 'All closed situations'
+                    ? 'Nothing recorded for "$_historyOutcome".'
+                    : 'Nothing recorded here.',
+                style: const TextStyle(color: _muted),
+              ),
             ),
           ],
-        ),
+          const SizedBox(height: 8),
+          PanelCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'UNDERSTANDING ALERTS',
+                  style: TextStyle(
+                    color: _muted,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Priority Flow: Critical safety hazards → Trip interruptions → Maintenance warnings → Informational telemetry updates.',
+                  style: TextStyle(color: _muted, fontSize: 12, height: 1.6),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  explanation,
+                  style:
+                      const TextStyle(color: _muted, fontSize: 12, height: 1.5),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     ]);
+  }
+
+  void _showUnavailableAction(String action) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '$action is not connected in this prototype. No operational change was made.',
+        ),
+      ),
+    );
   }
 
   Widget _alertFilter({
@@ -808,12 +828,20 @@ class _OperationsShellState extends State<OperationsShell> {
         const SizedBox(height: 10),
       ],
       const SizedBox(height: 12),
+      const Text(
+        'ACCOUNT',
+        style: TextStyle(
+          color: _muted,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 1,
+        ),
+      ),
+      const SizedBox(height: 12),
       const PanelCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SectionHeading(title: 'Account'),
-            SizedBox(height: 14),
             Text('Samuel Onyenwe',
                 style: TextStyle(fontWeight: FontWeight.w700)),
             SizedBox(height: 4),
@@ -992,7 +1020,8 @@ class _OperationsShellState extends State<OperationsShell> {
               const SizedBox(height: 16),
               _partnerStatus('Last answer from Settlement', 'None yet'),
               _partnerStatus('Completion reports waiting to be sent', '0'),
-              _partnerStatus('Held until a supervisor confirms the tonnes', '0'),
+              _partnerStatus(
+                  'Held until a supervisor confirms the tonnes', '0'),
               _partnerStatus('Refused by Settlement', '0'),
               const SizedBox(height: 8),
               const Text(
@@ -1237,7 +1266,8 @@ class _OperationsShellState extends State<OperationsShell> {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: const Color(0xFFFF5C58).withValues(alpha: 0.1),
-        border: Border.all(color: const Color(0xFFFF5C58).withValues(alpha: 0.4)),
+        border:
+            Border.all(color: const Color(0xFFFF5C58).withValues(alpha: 0.4)),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -1343,7 +1373,8 @@ class TripSetupSheet extends StatelessWidget {
     _TripSetupRequirement(
       name: 'Telemetry device',
       isRequired: false,
-      description: 'Required for live GPS tracking and automatic geofence detection.',
+      description:
+          'Required for live GPS tracking and automatic geofence detection.',
     ),
     _TripSetupRequirement(
       name: 'Material',
@@ -1525,18 +1556,28 @@ class _SetupBlockerNotice extends StatelessWidget {
 }
 
 class DemoNotice extends StatelessWidget {
-  const DemoNotice({super.key, this.compact = false});
+  const DemoNotice({
+    super.key,
+    this.compact = false,
+    this.title,
+    this.message,
+    this.neutral = false,
+  });
 
   final bool compact;
+  final String? title;
+  final String? message;
+  final bool neutral;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: EdgeInsets.all(compact ? 11 : 14),
       decoration: BoxDecoration(
-        color: _blue.withValues(alpha: 0.09),
-        border: Border.all(color: _blue.withValues(alpha: 0.25)),
-        borderRadius: BorderRadius.circular(13),
+        color: neutral ? _surface : _blue.withValues(alpha: 0.09),
+        border: Border.all(
+            color: neutral ? _border : _blue.withValues(alpha: 0.25)),
+        borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1544,15 +1585,29 @@ class DemoNotice extends StatelessWidget {
           const Icon(Icons.info_outline_rounded, color: _blue, size: 19),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(
-              compact
-                  ? 'Prototype with sample data · Not connected to live operations'
-                  : 'Presentation prototype. Sample records and actions are not connected to the live system.',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 12,
-                height: 1.45,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (title != null) ...[
+                  Text(title!,
+                      style: const TextStyle(
+                          color: _blue,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 5),
+                ],
+                Text(
+                  message ??
+                      (compact
+                          ? 'Prototype with sample data · Not connected to live operations'
+                          : 'Presentation prototype. Sample records and actions are not connected to the live system.'),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    height: 1.45,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -1653,17 +1708,17 @@ class StatusPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: color.withValues(alpha: 0.25)),
       ),
       child: Text(
-        label,
+        label.toUpperCase(),
         style: TextStyle(
           color: color,
-          fontSize: 11,
+          fontSize: 9,
           fontWeight: FontWeight.w700,
         ),
       ),
@@ -1678,12 +1733,16 @@ class AlertCard extends StatelessWidget {
     required this.detail,
     required this.severity,
     required this.icon,
+    this.expanded = false,
+    this.onAction,
   });
 
   final String title;
   final String detail;
   final String severity;
   final IconData icon;
+  final bool expanded;
+  final ValueChanged<String>? onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -1691,49 +1750,68 @@ class AlertCard extends StatelessWidget {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(15),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: color, size: 20),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, color: color, size: 19),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Text(
-                          title,
+                      Text(title,
                           style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                          ),
+                              fontSize: 14, fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 5),
+                      Text(
+                        expanded
+                            ? (severity == 'Warning'
+                                ? 'ASSET DT-03'
+                                : 'TRIP TR-2046')
+                            : detail,
+                        style: TextStyle(
+                          color: _muted,
+                          fontSize: expanded ? 10 : 12,
+                          height: 1.5,
                         ),
                       ),
-                      StatusPill(label: severity, color: color),
                     ],
                   ),
-                  const SizedBox(height: 7),
-                  Text(
-                    detail,
-                    style: const TextStyle(
-                      color: _muted,
-                      fontSize: 12,
-                      height: 1.45,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+                const SizedBox(width: 6),
+                StatusPill(label: severity, color: color),
+              ],
             ),
+            if (expanded) ...[
+              const SizedBox(height: 16),
+              Text(detail,
+                  style: const TextStyle(
+                      color: _muted, fontSize: 12, height: 1.6)),
+              const SizedBox(height: 20),
+              FilledButton(
+                onPressed: () => onAction?.call(
+                    severity == 'Warning' ? 'Reset Link' : 'Verify Tonnage'),
+                child: Text(
+                    severity == 'Warning' ? 'Reset Link' : 'Verify Tonnage'),
+              ),
+              if (severity != 'Warning')
+                TextButton(
+                  onPressed: () => onAction?.call('Reassign Supervisor'),
+                  child: const Text('Reassign Supervisor',
+                      style: TextStyle(color: _muted, fontSize: 12)),
+                ),
+            ],
           ],
         ),
       ),
@@ -1750,66 +1828,260 @@ class TripCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = switch (trip.status) {
-      'In transit' || 'Approaching' || 'Arrived' => _green,
+      'In transit' ||
+      'Approaching' ||
+      'Arrived' =>
+        showProgress ? _blue : _green,
       'At origin' || 'Exception' => _amber,
       _ => _blue,
     };
 
+    final stops = trip.route.split(' → ');
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(15),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Text(
-                  trip.code,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const Spacer(),
-                StatusPill(label: trip.status, color: color),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(showProgress ? 22 : 14),
+        side: const BorderSide(color: _border),
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(15),
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.local_shipping_outlined,
-                    color: _blue, size: 19),
-                const SizedBox(width: 9),
-                Expanded(
-                  child: Text(
-                    trip.route,
+                Row(
+                  children: [
+                    Expanded(
+                        child: Text(
+                      trip.code,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    )),
+                    StatusPill(label: trip.status, color: color),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                if (showProgress) ...[
+                  _TripStop(label: 'ORIGIN', name: stops.first, color: color),
+                  const SizedBox(height: 14),
+                  _TripStop(
+                      label: 'DESTINATION', name: stops.last, color: _blue),
+                  const SizedBox(height: 20),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: _TripFact(
+                          label: 'VEHICLE',
+                          value: trip.vehicle,
+                          icon: Icons.local_shipping_rounded,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _TripFact(
+                          label: 'MATERIAL',
+                          value: trip.material,
+                          icon: Icons.category_rounded,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    spacing: 16,
+                    runSpacing: 6,
+                    children: [
+                      Text(
+                        trip.status == 'At origin'
+                            ? 'LOADING STATUS'
+                            : 'PROGRESS',
+                        style: const TextStyle(
+                            color: _muted,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700),
+                      ),
+                      Text(trip.eta,
+                          style: TextStyle(color: color, fontSize: 11)),
+                    ],
+                  ),
+                ] else ...[
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.local_shipping_outlined,
+                          color: _blue, size: 19),
+                      const SizedBox(width: 9),
+                      Expanded(
+                        child: Text(
+                          trip.route,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            height: 1.4,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 9),
+                  Text(
+                    '${trip.vehicle} · ${trip.material} · ${trip.eta}',
                     style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      height: 1.4,
+                        color: _muted, fontSize: 11, height: 1.5),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (showProgress)
+            LinearProgressIndicator(
+              value: trip.progress,
+              minHeight: 4,
+              backgroundColor: _surfaceRaised,
+              color: color,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TripStop extends StatelessWidget {
+  const _TripStop({
+    required this.label,
+    required this.name,
+    required this.color,
+  });
+
+  final String label;
+  final String name;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(Icons.circle_outlined, size: 10, color: color),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(color: _muted, fontSize: 9)),
+              const SizedBox(height: 4),
+              Text(name, style: const TextStyle(fontSize: 13)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TripFact extends StatelessWidget {
+  const _TripFact({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: _background,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(color: _muted, fontSize: 9)),
+          const SizedBox(height: 6),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, size: 14, color: _blue),
+              const SizedBox(width: 5),
+              Expanded(
+                  child: Text(value, style: const TextStyle(fontSize: 11))),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BottomTabs extends StatelessWidget {
+  const _BottomTabs({
+    required this.selectedIndex,
+    required this.items,
+    required this.onSelected,
+  });
+
+  final int selectedIndex;
+  final List<_NavItem> items;
+  final ValueChanged<int> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        color: _background,
+        border: Border(top: BorderSide(color: _border)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (var index = 0; index < items.length; index++)
+              Expanded(
+                child: Semantics(
+                  selected: index == selectedIndex,
+                  child: TextButton(
+                    key: ValueKey('main-tab-${items[index].label}'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: index == selectedIndex ? _blue : _muted,
+                      padding: const EdgeInsets.fromLTRB(2, 0, 2, 12),
+                      minimumSize: const Size(48, 64),
+                      shape: const RoundedRectangleBorder(),
+                    ),
+                    onPressed: () => onSelected(index),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 28,
+                          height: 3,
+                          decoration: BoxDecoration(
+                            color: index == selectedIndex
+                                ? _blue
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                        ),
+                        const SizedBox(height: 11),
+                        Icon(items[index].icon, size: 22),
+                        const SizedBox(height: 5),
+                        Text(items[index].label,
+                            style: const TextStyle(
+                                fontSize: 10, fontWeight: FontWeight.w600)),
+                      ],
                     ),
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 9),
-            Text(
-              '${trip.vehicle} · ${trip.material} · ${trip.eta}',
-              style: const TextStyle(color: _muted, fontSize: 11, height: 1.5),
-            ),
-            if (showProgress) ...[
-              const SizedBox(height: 14),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(5),
-                child: LinearProgressIndicator(
-                  value: trip.progress,
-                  minHeight: 5,
-                  backgroundColor: _surfaceRaised,
-                  color: _blue,
-                ),
               ),
-            ],
           ],
         ),
       ),
@@ -1891,90 +2163,4 @@ class MapVehiclePin extends StatelessWidget {
       ],
     );
   }
-}
-
-class _DemoMapPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final bounds = Offset.zero & size;
-    canvas.drawRect(bounds, Paint()..color = const Color(0xFF202923));
-
-    final terrainPaint = Paint()
-      ..color = const Color(0xFF29352D)
-      ..style = PaintingStyle.fill;
-    for (var i = 0; i < 7; i++) {
-      final top = (i * 61.0) % size.height;
-      final left = (i * 79.0) % size.width;
-      canvas.drawOval(
-        Rect.fromLTWH(left - 30, top - 18, 110, 56),
-        terrainPaint,
-      );
-    }
-
-    final minorRoad = Paint()
-      ..color = const Color(0xFF4A5149)
-      ..strokeWidth = 2;
-    for (var i = 0; i < 6; i++) {
-      final path = Path()
-        ..moveTo(-20, size.height * (i / 6))
-        ..cubicTo(
-          size.width * 0.28,
-          size.height * ((i + 1) / 7),
-          size.width * 0.7,
-          size.height * ((i + 2) / 8),
-          size.width + 20,
-          size.height * ((i + 1) / 6),
-        );
-      canvas.drawPath(path, minorRoad);
-    }
-
-    final route = Path()
-      ..moveTo(size.width * 0.16, size.height * 0.34)
-      ..cubicTo(
-        size.width * 0.36,
-        size.height * 0.3,
-        size.width * 0.55,
-        size.height * 0.74,
-        size.width * 0.82,
-        size.height * 0.68,
-      );
-    canvas.drawPath(
-      route,
-      Paint()
-        ..color = _blue
-        ..strokeWidth = 3
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round,
-    );
-
-    final river = Path()
-      ..moveTo(0, size.height * 0.82)
-      ..cubicTo(
-        size.width * 0.23,
-        size.height * 0.68,
-        size.width * 0.43,
-        size.height * 1.08,
-        size.width * 0.7,
-        size.height * 0.85,
-      )
-      ..cubicTo(
-        size.width * 0.86,
-        size.height * 0.72,
-        size.width * 0.93,
-        size.height * 0.9,
-        size.width,
-        size.height * 0.78,
-      );
-    canvas.drawPath(
-      river,
-      Paint()
-        ..color = const Color(0xFF294350)
-        ..strokeWidth = 10
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _DemoMapPainter oldDelegate) => false;
 }

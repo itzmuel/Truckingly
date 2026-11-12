@@ -27,7 +27,7 @@ void main() {
     await tester.tap(find.text('Last 7 days').last);
     await tester.pumpAndSettle();
     expect(find.textContaining('Last 7 days · Coverage'), findsOneWidget);
-    await tester.tap(find.widgetWithText(TextButton, 'More'));
+    await tester.tap(find.widgetWithText(TextButton, 'More').first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Intelligence'));
     await tester.pumpAndSettle();
