@@ -1670,40 +1670,61 @@ class _OperationsShellState extends State<OperationsShell> {
                 _presentationTripDetailsKey.currentState?.backForPresentation(),
           );
         case 'progress-trip':
-          final trip = _presentationTrip;
-          if (trip == null || !trip.canAdvance) {
-            throw StateError('The selected demo trip cannot advance further.');
+          final initialTrip = _presentationTrip;
+          if (initialTrip == null) {
+            throw StateError('No sample trip is available to progress.');
           }
+          final targetStatus = currentStep.targetStatus ??
+              (role == DemoPathAudience.driver ? 'Completed' : 'In transit');
+          if (!Trip.journey.contains(targetStatus)) {
+            throw StateError('Unsupported trip target status: $targetStatus.');
+          }
+          _presentationTripCode = initialTrip.code;
           await _performPresentationAction(
             _presentationPrimaryTargetKey,
             'Open assigned trip',
             generation,
-            onActivate: () async => _openTrip(trip.code),
+            onActivate: () async => _openTrip(initialTrip.code),
             scrollController: _presentationTripsScrollController,
           );
           await _waitForPresentationState(
             () => _presentationTripDetailsKey.currentState != null,
             generation,
           );
-          await _performPresentationAction(
-            _presentationSecondaryTargetKey,
-            'Advance to ${Trip.journey[Trip.journey.indexOf(trip.status) + 1]}',
-            generation,
-            onActivate: () async {
-              final details = _presentationTripDetailsKey.currentState;
-              if (details == null) {
-                throw StateError(
-                    'The trip progression control is unavailable.');
-              }
-              await details.advanceForPresentation();
-            },
-            scrollController: _presentationDetailsScrollController,
-          );
-          await _waitForDemoSave(generation);
-          if (_presentationCanContinue(generation) &&
-              _demo.trips.firstWhere((item) => item.code == trip.code).status ==
-                  trip.status) {
-            throw StateError('The simulated trip stage did not change.');
+          var trip = _demo.tripByCode(initialTrip.code);
+          if (Trip.journey.indexOf(trip.status) >
+              Trip.journey.indexOf(targetStatus)) {
+            throw StateError(
+                'Trip ${trip.code} is already at ${trip.status}, beyond target $targetStatus.');
+          }
+          while (trip.status != targetStatus && trip.canAdvance) {
+            final beforeStatus = trip.status;
+            final nextStatus =
+                Trip.journey[Trip.journey.indexOf(beforeStatus) + 1];
+            await _performPresentationAction(
+              _presentationSecondaryTargetKey,
+              'Advance to $nextStatus',
+              generation,
+              onActivate: () async {
+                final details = _presentationTripDetailsKey.currentState;
+                if (details == null) {
+                  throw StateError(
+                      'The trip progression control is unavailable.');
+                }
+                await details.advanceForPresentation();
+              },
+              scrollController: _presentationDetailsScrollController,
+            );
+            await _waitForDemoSave(generation);
+            if (!_presentationCanContinue(generation)) return;
+            trip = _demo.tripByCode(initialTrip.code);
+            if (trip.status == beforeStatus) {
+              throw StateError('The simulated trip stage did not change.');
+            }
+          }
+          if (trip.status != targetStatus) {
+            throw StateError(
+                'Trip ${trip.code} cannot reach target $targetStatus from ${trip.status}.');
           }
           if (!_presentationCanContinue(generation)) return;
           await _performPresentationAction(
@@ -1791,6 +1812,14 @@ class _OperationsShellState extends State<OperationsShell> {
         case 'investigate-alert':
         case 'resolve-alert':
           final alert = _demo.alertById(_presentationAlertId);
+          if (alert.isOpen) {
+            setState(() {
+              _alertSection = 'Needs action';
+              _situationKind = 'All kinds';
+            });
+            await WidgetsBinding.instance.endOfFrame;
+            if (!_presentationCanContinue(generation)) return;
+          }
           await _performPresentationAction(
             _presentationPrimaryTargetKey,
             'Open ${alert.title}',
@@ -1923,12 +1952,11 @@ class _OperationsShellState extends State<OperationsShell> {
             throw StateError(
                 'No sample vehicle is available for a site visit.');
           }
-          final activeTrip = _demo.activeTrips
-              .where((item) => item.vehicle == vehicle)
-              .firstOrNull;
+          final assignedTrip =
+              _demo.trips.where((item) => item.vehicle == vehicle).firstOrNull;
           setState(() {
             _visitVehicle = vehicle;
-            _visitTripCode = activeTrip?.code;
+            _visitTripCode = trip?.code ?? assignedTrip?.code;
           });
           await _performPresentationAction(
             _presentationPrimaryTargetKey,

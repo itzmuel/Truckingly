@@ -1,6 +1,7 @@
-import 'dart:convert';
+ import 'dart:convert';
 
 import 'package:dumptrak_mobile_prototype/demo_director.dart';
+import 'package:dumptrak_mobile_prototype/demo_paths.dart';
 import 'package:dumptrak_mobile_prototype/demo_store.dart';
 import 'package:dumptrak_mobile_prototype/main.dart';
 import 'package:flutter/material.dart';
@@ -57,11 +58,18 @@ Future<void> loadScenario(WidgetTester tester, DemoScenario scenario) async {
   await tester.pumpAndSettle();
 }
 
-Future<void> startGuidedRole(WidgetTester tester, String roleName) async {
+Future<void> startGuidedRole(
+  WidgetTester tester,
+  String roleName, {
+  DemoScenario scenario = DemoScenario.normal,
+}) async {
   final launch = find.byKey(const ValueKey('open-stakeholder-walkthrough'));
   await reveal(tester, launch);
   await tester.tap(launch);
   await tester.pumpAndSettle();
+  if (scenario != DemoScenario.normal) {
+    await chooseScenario(tester, scenario);
+  }
   final role = find.byKey(const ValueKey('presentation-role-switcher'));
   await reveal(tester, role);
   await tester.tap(role);
@@ -296,7 +304,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('confirm-start-presentation')));
     await tester.pumpAndSettle();
     await waitForPresentationActions(tester);
-    expect(find.text('STEP 1 OF 9 · HOME'), findsOneWidget);
+    expect(find.text('STEP 1 OF 6 · HOME'), findsOneWidget);
     expect(find.byKey(const ValueKey('presentation-next')), findsOneWidget);
     expect(store.scenario, DemoScenario.vehicleIncident);
     expect(store.trips.first.status, 'Exception');
@@ -347,7 +355,7 @@ void main() {
         .widget<Text>(find.byKey(const ValueKey('presentation-countdown')))
         .data!;
     await tester.pump(const Duration(seconds: 40));
-    expect(find.text('STEP 1 OF 14 · HOME'), findsOneWidget);
+    expect(find.text('STEP 1 OF 9 · HOME'), findsOneWidget);
     expect(
         tester
             .widget<Text>(find.byKey(const ValueKey('presentation-countdown')))
@@ -361,7 +369,7 @@ void main() {
         int.parse(remainingParts[0]) * 60 + int.parse(remainingParts[1]);
     await tester.pump(Duration(seconds: remainingSeconds));
     await tester.pump();
-    expect(find.text('STEP 2 OF 14 · TRIPS'), findsOneWidget);
+    expect(find.text('STEP 2 OF 9 · TRIPS'), findsOneWidget);
     expect(find.text('Create a demo trip'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('presentation-pause')));
     await tester.pump();
@@ -406,6 +414,9 @@ void main() {
     await tester.pumpAndSettle();
     await waitForPresentationActions(tester);
     expect(find.text('Edit sample assignment'), findsOneWidget);
+    await tester.tap(next);
+    await tester.pumpAndSettle();
+    await waitForPresentationActions(tester);
     expect(
       store.trips.first.driver != oldDriver ||
           store.trips.first.vehicle != oldVehicle,
@@ -416,8 +427,7 @@ void main() {
     await tester.pumpAndSettle();
     await waitForPresentationActions(tester);
     expect(store.trips.length, 3);
-    expect(store.trips.first.status, 'Dispatched');
-    expect(find.text('Advance trip to Dispatched'), findsOneWidget);
+    expect(store.trips.first.status, 'In transit');
 
     await tester.tap(find.byKey(const ValueKey('stop-presentation')));
     await tester.pumpAndSettle();
@@ -452,13 +462,13 @@ void main() {
     await tester.pumpAndSettle();
     await waitForPresentationActions(tester);
 
-    for (var index = 0; index < 13; index++) {
+    for (var index = 0; index < 8; index++) {
       await tester.tap(find.byKey(const ValueKey('presentation-next')));
       await tester.pumpAndSettle();
       await waitForPresentationActions(tester);
     }
     expect(store.trips.length, 3);
-    expect(store.trips.first.status, 'Completed');
+    expect(store.trips.first.status, 'In transit');
     expect(store.alertById('alert-tracking').acknowledged, isTrue);
     expect(find.byKey(const ValueKey('replay-presentation')), findsOneWidget);
 
@@ -480,7 +490,7 @@ void main() {
     expect(store.tripByCode('TR-2048').status, initialTripStatus);
     expect(store.alertById('alert-tracking').acknowledged, isFalse);
     expect(store.alerts, hasLength(2));
-    expect(find.text('STEP 1 OF 14 · HOME'), findsOneWidget);
+    expect(find.text('STEP 1 OF 9 · HOME'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('stop-presentation')));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
@@ -532,7 +542,7 @@ void main() {
       await tester.pumpAndSettle();
       await waitForPresentationActions(tester);
     }
-    expect(find.text('STEP 5 OF 10 · TRIPS'), findsOneWidget);
+    expect(find.text('STEP 5 OF 9 · MORE'), findsOneWidget);
     expect(store.alertById('alert-tracking').acknowledged, isFalse);
     expect(tester.takeException(), isNull);
 
@@ -651,7 +661,7 @@ void main() {
     await tester.pumpWidget(DumptrakPrototypeApp(store: store));
     await startGuidedRole(tester, 'Driver');
 
-    for (var index = 0; index < 6; index++) {
+    for (var index = 0; index < 4; index++) {
       await advancePresentationStep(tester);
     }
 
@@ -709,6 +719,62 @@ void main() {
     expect(tester.takeException(), isNull);
     await tester.tap(find.byKey(const ValueKey('finish-presentation')));
     await tester.pumpAndSettle();
+  });
+
+  testWidgets('Full Enterprise tour hands off one trip across every scenario',
+      (tester) async {
+    for (final scenario in DemoScenario.values) {
+      final store = DemoStore.memory();
+      addTearDown(store.dispose);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(DumptrakPrototypeApp(store: store));
+      await startGuidedRole(
+        tester,
+        'All Personnel',
+        scenario: scenario,
+      );
+      final route = DemoPathGenerator.generate(
+        audience: DemoPathAudience.allPersonnel,
+        scenario: scenario,
+      );
+      for (var index = 1; index < route.length; index++) {
+        try {
+          await advancePresentationStep(tester);
+        } catch (error) {
+          fail(
+            'Scenario ${scenario.name} stalled at '
+            '${route[index].role.label}: ${route[index].title}. $error',
+          );
+        }
+      }
+
+      if (scenario == DemoScenario.normal) {
+        final sharedTrip = store.trips.first;
+        expect(sharedTrip.status, 'Completed');
+        expect(sharedTrip.code, isNot('TR-2048'));
+        expect(store.visits, hasLength(1));
+        expect(store.visits.single.tripCode, sharedTrip.code);
+        expect(store.visits.single.isCompleted, isTrue);
+      } else if (scenario == DemoScenario.delayedDelivery) {
+        expect(
+          store.tripByCode('TR-2048').status,
+          'Completed',
+          reason: 'Scenario ${scenario.name} must hand off the same trip.',
+        );
+        expect(store.alertById('alert-delay-demo').isOpen, isFalse);
+        expect(store.visits, hasLength(1));
+        expect(store.visits.single.tripCode, 'TR-2048');
+      } else {
+        expect(store.tripByCode('TR-2048').status, 'Exception');
+        expect(store.alertById('alert-incident-demo').isOpen, isFalse);
+        expect(store.visits, isEmpty);
+      }
+      expect(find.byKey(const ValueKey('finish-presentation')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.byKey(const ValueKey('finish-presentation')));
+      await tester.pumpAndSettle();
+    }
   });
 
   testWidgets('role and scenario controls fit narrow screens with larger text',
