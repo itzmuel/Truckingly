@@ -65,27 +65,50 @@ original samples.
 The Home screen also has a **Stakeholder walkthrough** shortcut to open the
 scenario selector and walkthrough steps directly.
 
-**Demo Director** offers three presentation modes: Autoplay advances through a
-five-screen sequence on a 3-, 5-, or 8-minute schedule and supports pause,
-resume, previous, next, replay, and stop; Guided waits for the presenter to
-advance after each screen's demonstration; Explore loads the selected scenario
-and returns to the interactive app. Autoplay and Guided visibly animate a
-labeled pointer over the relevant controls. The Director invokes the same
-validated screen actions directly instead of synthesizing input events, making
-the sequence dependable across layouts and devices. It opens a trip, advances
-its journey stage, inspects the assigned vehicle on the map, reviews the
-scenario alert, and opens the Customer visits report.
-The presentation header identifies the selected sample person and role, and
-the narration emphasizes that role's responsibilities. A Driver perspective
-reviews alerts without acknowledging them; the other perspectives acknowledge
-the selected open demo alert. Roles remain display-only, not authentication,
-authorization, or permission enforcement. Starting or replaying a
-presentation requires confirmation because it replaces saved sample trips,
-alerts, and visit events. Stopping or using system Back returns to Home without
-another data change. Presentation actions are simulated and saved locally. The
-pointer is visual feedback only; it does not represent physical touch input.
-An acknowledged alert remains open and does not imply the underlying issue was
-resolved or repaired.
+**Demo Director** offers three presentation modes: Autoplay uses the selected
+3-, 5-, or 8-minute schedule and supports pause, resume, previous, next, replay,
+and stop; Guided waits for the presenter to advance after each action; Explore
+loads the selected scenario and returns to the interactive app. The route
+preview lists the steps before starting. Select Administrator, Dispatcher,
+Driver, Supervisor, or All Personnel; the combined tour runs the four role
+paths in that order. The selected operational scenario changes which
+demonstration actions are safe and applicable.
+
+The role paths use the existing app controls and saved demo operations:
+
+- **Administrator:** Home indicators, trip status filters and timeline, fleet
+  map and vehicle details, alert history, report sections, intelligence
+  periods, and the informational Compliance, Settlement, and FleetOps previews.
+- **Dispatcher:** create a sample trip in the existing wizard, inspect and edit
+  its driver/vehicle assignment, advance its eligible journey stages, inspect
+  the assigned vehicle, acknowledge an open scenario alert, and review reports.
+- **Driver:** inspect an assigned trip, advance eligible journey stages, inspect
+  its vehicle, record site arrival and departure through Demo controls, review
+  alert details without changing them, and review the recorded visit report.
+- **Supervisor:** filter the open situation queue, inspect the selected alert,
+  acknowledge it, assign a sample supervisor, add an investigation note,
+  inspect its vehicle and trip, resolve it through the app's confirmation
+  flow, and review its history and reports.
+
+Autoplay and Guided visibly animate a labeled pointer over the relevant
+controls. The Director invokes validated app actions directly rather than
+synthesizing input events. It waits for supported save operations and reports
+an error instead of silently skipping a failed step. Exception trips are
+inspected, never advanced. The driver path does not acknowledge, assign, or
+resolve alerts. Acknowledgment leaves an alert open; resolution moves it to
+History but does not prove that the underlying condition cleared. Customer-site
+visits are recorded only through the existing visit controls; Reports only
+reviews those records. Compliance, Settlement, and FleetOps are informational
+previews and do not simulate connected services.
+
+The presentation header identifies the current sample person and role, and the
+narration emphasizes that role's responsibilities. Roles remain display-only,
+not authentication, authorization, or permission enforcement. Starting or
+replaying a presentation requires confirmation because it replaces saved
+sample trips, alerts, and visit events. Stopping or using system Back returns
+to Home without another data change. Presentation actions are simulated and
+saved locally. The pointer is visual feedback only; it does not represent
+physical touch input.
 
 The delay scenario uses a sample status label and an alert, not an actual
 calculated delay or arrival time. The incident scenario marks a sample trip as

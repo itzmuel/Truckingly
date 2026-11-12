@@ -4,18 +4,25 @@ import 'demo_store.dart';
 import 'demo_trip_catalog.dart';
 
 class TripWizard extends StatefulWidget {
-  const TripWizard({super.key, required this.store, this.trip});
+  const TripWizard({
+    super.key,
+    required this.store,
+    this.trip,
+    this.presentationNextKey,
+  });
 
   final DemoStore store;
   final Trip? trip;
+  final GlobalKey? presentationNextKey;
 
   @override
-  State<TripWizard> createState() => _TripWizardState();
+  TripWizardState createState() => TripWizardState();
 }
 
-class _TripWizardState extends State<TripWizard> {
+class TripWizardState extends State<TripWizard> {
   final _form = GlobalKey<FormState>();
   int _step = 0;
+  int _selectionRevision = 0;
   String? _project;
   String? _origin;
   String? _destination;
@@ -27,6 +34,34 @@ class _TripWizardState extends State<TripWizard> {
   bool get _editing => widget.trip != null;
   List<String> get _drivers => widget.store.driversFor(widget.trip?.code);
   List<String> get _vehicles => widget.store.vehiclesFor(widget.trip?.code);
+
+  void prepareSampleAssignment() {
+    if (_drivers.isEmpty || _vehicles.isEmpty) {
+      throw StateError('No sample driver or vehicle is available for a trip.');
+    }
+    setState(() {
+      _selectionRevision++;
+      if (!_editing) {
+        _project = DemoTripCatalog.projects.first;
+        _origin = DemoTripCatalog.origins.first;
+        _destination = DemoTripCatalog.destinations.first;
+        _driver = _drivers.first;
+        _vehicle = _vehicles.first;
+        _material = DemoTripCatalog.materials.first;
+      } else {
+        _driver = _drivers.firstWhere(
+          (driver) => driver != widget.trip!.driver,
+          orElse: () => _drivers.first,
+        );
+        _vehicle = _vehicles.firstWhere(
+          (vehicle) => vehicle != widget.trip!.vehicle,
+          orElse: () => _vehicles.first,
+        );
+      }
+    });
+  }
+
+  Future<void> continueForPresentation() => _continue();
 
   @override
   void initState() {
@@ -74,25 +109,41 @@ class _TripWizardState extends State<TripWizard> {
     }
   }
 
+  Future<void> _continue() async {
+    if (_saving) return;
+    if (_step == 2) {
+      await _create();
+    } else if (_form.currentState!.validate()) {
+      setState(() {
+        _step++;
+        _error = null;
+      });
+    }
+  }
+
   Widget _select(String key, String label, String? value, List<String> options,
       ValueChanged<String?> onChanged) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 20),
-      child: DropdownButtonFormField<String>(
-        key: ValueKey('new-trip-$key'),
-        initialValue: value,
-        isExpanded: true,
-        decoration: InputDecoration(labelText: '$label (required)'),
-        items: [
-          for (final option in options)
-            DropdownMenuItem(
-              value: option,
-              child: Text(option, overflow: TextOverflow.ellipsis),
-            ),
-        ],
-        validator: (selected) =>
-            selected == null ? 'Choose a sample ${label.toLowerCase()}.' : null,
-        onChanged: _saving ? null : onChanged,
+      child: KeyedSubtree(
+        key: ValueKey('sample-selection-$_selectionRevision-$key'),
+        child: DropdownButtonFormField<String>(
+          key: ValueKey('new-trip-$key'),
+          initialValue: value,
+          isExpanded: true,
+          decoration: InputDecoration(labelText: '$label (required)'),
+          items: [
+            for (final option in options)
+              DropdownMenuItem(
+                value: option,
+                child: Text(option, overflow: TextOverflow.ellipsis),
+              ),
+          ],
+          validator: (selected) => selected == null
+              ? 'Choose a sample ${label.toLowerCase()}.'
+              : null,
+          onChanged: _saving ? null : onChanged,
+        ),
       ),
     );
   }
@@ -139,7 +190,11 @@ class _TripWizardState extends State<TripWizard> {
               LinearProgressIndicator(value: (_step + 1) / 3),
               const SizedBox(height: 16),
               Text(
-                'Step ${_step + 1} of 3 · ${['Route & project', 'Assignments', 'Review'][_step]}',
+                'Step ${_step + 1} of 3 · ${[
+                  'Route & project',
+                  'Assignments',
+                  'Review'
+                ][_step]}',
                 style:
                     const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
               ),
@@ -150,13 +205,22 @@ class _TripWizardState extends State<TripWizard> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     if (_step == 0) ...[
-                      _select('project', 'Project', _project,
+                      _select(
+                          'project',
+                          'Project',
+                          _project,
                           DemoTripCatalog.projects,
                           (value) => setState(() => _project = value)),
-                      _select('origin', 'Origin', _origin,
+                      _select(
+                          'origin',
+                          'Origin',
+                          _origin,
                           DemoTripCatalog.origins,
                           (value) => setState(() => _origin = value)),
-                      _select('destination', 'Destination', _destination,
+                      _select(
+                          'destination',
+                          'Destination',
+                          _destination,
                           DemoTripCatalog.destinations,
                           (value) => setState(() => _destination = value)),
                     ] else if (_step == 1) ...[
@@ -167,13 +231,14 @@ class _TripWizardState extends State<TripWizard> {
                             'No free demo assignments remain. Close this wizard and complete existing trips using Demo controls, or reset the demo.',
                           ),
                         ),
-                      _select('driver', 'Driver', _driver,
-                          _drivers,
+                      _select('driver', 'Driver', _driver, _drivers,
                           (value) => setState(() => _driver = value)),
-                      _select('vehicle', 'Vehicle', _vehicle,
-                          _vehicles,
+                      _select('vehicle', 'Vehicle', _vehicle, _vehicles,
                           (value) => setState(() => _vehicle = value)),
-                      _select('material', 'Material', _material,
+                      _select(
+                          'material',
+                          'Material',
+                          _material,
                           DemoTripCatalog.materials,
                           (value) => setState(() => _material = value)),
                       const Text(
@@ -187,8 +252,10 @@ class _TripWizardState extends State<TripWizard> {
                         ('Driver', _driver),
                         ('Vehicle', _vehicle),
                         ('Material', _material),
-                        (_editing ? 'Status (unchanged)' : 'Initial status',
-                            widget.trip?.status ?? 'Planned'),
+                        (
+                          _editing ? 'Status (unchanged)' : 'Initial status',
+                          widget.trip?.status ?? 'Planned'
+                        ),
                       ])
                         Padding(
                           padding: const EdgeInsets.only(bottom: 16),
@@ -211,27 +278,23 @@ class _TripWizardState extends State<TripWizard> {
                     const SizedBox(height: 24),
                     if (_saving) const LinearProgressIndicator(),
                     const SizedBox(height: 12),
-                    FilledButton(
-                      key: const ValueKey('wizard-next'),
-                      onPressed: _saving
-                          ? null
-                          : () {
-                              if (_step == 2) {
-                                _create();
-                              } else if (_form.currentState!.validate()) {
-                                setState(() {
-                                  _step++;
-                                  _error = null;
-                                });
-                              }
-                            },
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        child: Text(_saving
-                            ? 'Saving demo trip…'
-                            : _step == 2
-                                ? (_editing ? 'Save demo changes' : 'Create demo trip')
-                                : 'Continue'),
+                    KeyedSubtree(
+                      key: widget.presentationNextKey,
+                      child: FilledButton(
+                        key: const ValueKey('wizard-next'),
+                        onPressed: _saving ? null : _continue,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          child: Text(
+                            _saving
+                                ? 'Saving demo trip…'
+                                : _step == 2
+                                    ? (_editing
+                                        ? 'Save demo changes'
+                                        : 'Create demo trip')
+                                    : 'Continue',
+                          ),
+                        ),
                       ),
                     ),
                     if (_step > 0)

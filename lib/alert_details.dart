@@ -8,6 +8,10 @@ class AlertDetails extends StatefulWidget {
     required this.store,
     required this.id,
     this.presentationAcknowledgeKey,
+    this.presentationAssignKey,
+    this.presentationNoteKey,
+    this.presentationResolveKey,
+    this.presentationConfirmResolveKey,
     this.presentationBackKey,
     this.scrollController,
   });
@@ -15,6 +19,10 @@ class AlertDetails extends StatefulWidget {
   final DemoStore store;
   final String id;
   final GlobalKey? presentationAcknowledgeKey;
+  final GlobalKey? presentationAssignKey;
+  final GlobalKey? presentationNoteKey;
+  final GlobalKey? presentationResolveKey;
+  final GlobalKey? presentationConfirmResolveKey;
   final GlobalKey? presentationBackKey;
   final ScrollController? scrollController;
 
@@ -28,8 +36,47 @@ class AlertDetailsState extends State<AlertDetails> {
   String? _supervisor;
   String? _error;
   bool _saving = false;
+  Future<void>? _presentationResolution;
 
   Future<void> acknowledgeForPresentation() => _acknowledge();
+
+  Future<void> investigateForPresentation() async {
+    final alert = widget.store.alertById(widget.id);
+    if (!alert.isOpen) return;
+    await _acknowledge();
+    await assignForPresentation();
+    await addNoteForPresentation();
+  }
+
+  Future<void> assignForPresentation() async {
+    if (_saving || !widget.store.alertById(widget.id).isOpen) return;
+    await _save(
+      () => widget.store.assignAlert(widget.id, DemoAlert.supervisors.first),
+    );
+  }
+
+  Future<void> addNoteForPresentation() async {
+    if (_saving || !widget.store.alertById(widget.id).isOpen) return;
+    await _save(
+      () => widget.store.addAlertNote(
+        widget.id,
+        'Supervisor reviewed the simulated situation and linked trip details.',
+      ),
+    );
+  }
+
+  void openResolutionConfirmationForPresentation() {
+    if (_saving || !widget.store.alertById(widget.id).isOpen) return;
+    _reason.text =
+        'Resolved for the stakeholder demonstration; underlying conditions are not verified.';
+    _presentationResolution = _resolve();
+  }
+
+  void confirmResolutionForPresentation() => Navigator.of(context).pop(true);
+
+  Future<void> waitForPresentationResolution() async {
+    await _presentationResolution;
+  }
 
   void backForPresentation() => _back();
 
@@ -92,9 +139,12 @@ class AlertDetailsState extends State<AlertDetails> {
             onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancel'),
           ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Resolve demo alert'),
+          KeyedSubtree(
+            key: widget.presentationConfirmResolveKey,
+            child: FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Resolve demo alert'),
+            ),
           ),
         ],
       ),
@@ -175,9 +225,8 @@ class AlertDetailsState extends State<AlertDetails> {
                         key: widget.presentationAcknowledgeKey,
                         child: FilledButton(
                           key: const ValueKey('acknowledge-alert'),
-                          onPressed: busy || alert.acknowledged
-                              ? null
-                              : _acknowledge,
+                          onPressed:
+                              busy || alert.acknowledged ? null : _acknowledge,
                           child: Text(alert.acknowledged
                               ? 'Acknowledged'
                               : 'Acknowledge demo alert'),
@@ -199,14 +248,17 @@ class AlertDetailsState extends State<AlertDetails> {
                             : (value) => setState(() => _supervisor = value),
                       ),
                       const SizedBox(height: 8),
-                      OutlinedButton(
-                        key: const ValueKey('assign-alert'),
-                        onPressed: busy ||
-                                (_supervisor ?? alert.supervisor) == null
-                            ? null
-                            : () => _save(() => widget.store.assignAlert(
-                                widget.id, _supervisor ?? alert.supervisor!)),
-                        child: const Text('Save demo assignment'),
+                      KeyedSubtree(
+                        key: widget.presentationAssignKey,
+                        child: OutlinedButton(
+                          key: const ValueKey('assign-alert'),
+                          onPressed: busy ||
+                                  (_supervisor ?? alert.supervisor) == null
+                              ? null
+                              : () => _save(() => widget.store.assignAlert(
+                                  widget.id, _supervisor ?? alert.supervisor!)),
+                          child: const Text('Save demo assignment'),
+                        ),
                       ),
                       const SizedBox(height: 20),
                       TextField(
@@ -219,15 +271,18 @@ class AlertDetailsState extends State<AlertDetails> {
                         decoration:
                             const InputDecoration(labelText: 'Add a demo note'),
                       ),
-                      OutlinedButton(
-                        key: const ValueKey('save-alert-note'),
-                        onPressed: busy
-                            ? null
-                            : () => _save(
-                                () => widget.store
-                                    .addAlertNote(widget.id, _note.text),
-                                onSaved: _note.clear),
-                        child: const Text('Save note'),
+                      KeyedSubtree(
+                        key: widget.presentationNoteKey,
+                        child: OutlinedButton(
+                          key: const ValueKey('save-alert-note'),
+                          onPressed: busy
+                              ? null
+                              : () => _save(
+                                  () => widget.store
+                                      .addAlertNote(widget.id, _note.text),
+                                  onSaved: _note.clear),
+                          child: const Text('Save note'),
+                        ),
                       ),
                     ],
                     const SizedBox(height: 20),
@@ -253,10 +308,13 @@ class AlertDetailsState extends State<AlertDetails> {
                         decoration: const InputDecoration(
                             labelText: 'Resolution summary (required)'),
                       ),
-                      FilledButton(
-                        key: const ValueKey('resolve-alert'),
-                        onPressed: busy ? null : _resolve,
-                        child: const Text('Resolve in demo'),
+                      KeyedSubtree(
+                        key: widget.presentationResolveKey,
+                        child: FilledButton(
+                          key: const ValueKey('resolve-alert'),
+                          onPressed: busy ? null : _resolve,
+                          child: const Text('Resolve in demo'),
+                        ),
                       ),
                     ] else ...[
                       Text('Resolution: ${alert.resolution}'),

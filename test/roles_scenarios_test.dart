@@ -30,7 +30,11 @@ Future<void> waitForPresentationActions(WidgetTester tester) async {
       return;
     }
   }
-  fail('Presentation action sequence did not finish.');
+  final snackbars = tester
+      .widgetList<SnackBar>(find.byType(SnackBar))
+      .map((snackbar) => (snackbar.content as Text).data)
+      .join(' | ');
+  fail('Presentation action sequence did not finish. $snackbars');
 }
 
 Future<void> chooseScenario(WidgetTester tester, DemoScenario scenario) async {
@@ -51,6 +55,32 @@ Future<void> loadScenario(WidgetTester tester, DemoScenario scenario) async {
   await tester.pumpAndSettle();
   await tester.tap(find.byKey(const ValueKey('confirm-load-guided-scenario')));
   await tester.pumpAndSettle();
+}
+
+Future<void> startGuidedRole(WidgetTester tester, String roleName) async {
+  final launch = find.byKey(const ValueKey('open-stakeholder-walkthrough'));
+  await reveal(tester, launch);
+  await tester.tap(launch);
+  await tester.pumpAndSettle();
+  final role = find.byKey(const ValueKey('presentation-role-switcher'));
+  await reveal(tester, role);
+  await tester.tap(role);
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(roleName).last);
+  await tester.pumpAndSettle();
+  final start = find.byKey(const ValueKey('start-presentation'));
+  await reveal(tester, start);
+  await tester.tap(start);
+  await tester.pumpAndSettle();
+  await tester.tap(find.byKey(const ValueKey('confirm-start-presentation')));
+  await tester.pumpAndSettle();
+  await waitForPresentationActions(tester);
+}
+
+Future<void> advancePresentationStep(WidgetTester tester) async {
+  await tester.tap(find.byKey(const ValueKey('presentation-next')));
+  await tester.pumpAndSettle();
+  await waitForPresentationActions(tester);
 }
 
 void main() {
@@ -266,7 +296,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('confirm-start-presentation')));
     await tester.pumpAndSettle();
     await waitForPresentationActions(tester);
-    expect(find.text('STEP 1 OF 5 · HOME'), findsOneWidget);
+    expect(find.text('STEP 1 OF 9 · HOME'), findsOneWidget);
     expect(find.byKey(const ValueKey('presentation-next')), findsOneWidget);
     expect(store.scenario, DemoScenario.vehicleIncident);
     expect(store.trips.first.status, 'Exception');
@@ -317,7 +347,7 @@ void main() {
         .widget<Text>(find.byKey(const ValueKey('presentation-countdown')))
         .data!;
     await tester.pump(const Duration(seconds: 40));
-    expect(find.text('STEP 1 OF 5 · HOME'), findsOneWidget);
+    expect(find.text('STEP 1 OF 14 · HOME'), findsOneWidget);
     expect(
         tester
             .widget<Text>(find.byKey(const ValueKey('presentation-countdown')))
@@ -331,8 +361,8 @@ void main() {
         int.parse(remainingParts[0]) * 60 + int.parse(remainingParts[1]);
     await tester.pump(Duration(seconds: remainingSeconds));
     await tester.pump();
-    expect(find.text('STEP 2 OF 5 · TRIPS'), findsOneWidget);
-    expect(find.text('Trip activity'), findsOneWidget);
+    expect(find.text('STEP 2 OF 14 · TRIPS'), findsOneWidget);
+    expect(find.text('Create a demo trip'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('presentation-pause')));
     await tester.pump();
     await waitForPresentationActions(tester);
@@ -342,7 +372,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Guided presentation records trip and alert actions once',
+  testWidgets('Dispatcher walkthrough creates and progresses one sample trip',
       (tester) async {
     final store = DemoStore.memory();
     addTearDown(store.dispose);
@@ -359,34 +389,37 @@ void main() {
     await tester.pumpAndSettle();
     await waitForPresentationActions(tester);
 
-    await tester.tap(find.byKey(const ValueKey('presentation-next')));
+    final next = find.byKey(const ValueKey('presentation-next'));
+    await tester.tap(next);
     await tester.pumpAndSettle();
     await waitForPresentationActions(tester);
-    expect(find.text('Trip activity'), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('presentation-next')));
-    await tester.pumpAndSettle();
-    await waitForPresentationActions(tester);
-    expect(store.tripByCode('TR-2048').status, 'Approaching');
-    expect(find.text('STEP 3 OF 5 · MAP'), findsOneWidget);
+    expect(find.text('Create a demo trip'), findsOneWidget);
+    expect(store.trips.length, 3);
 
-    await tester.tap(find.byKey(const ValueKey('presentation-previous')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('presentation-next')));
-    await tester.pumpAndSettle();
-    expect(store.tripByCode('TR-2048').status, 'Approaching');
-
-    await tester.tap(find.byKey(const ValueKey('presentation-next')));
+    await tester.tap(next);
     await tester.pumpAndSettle();
     await waitForPresentationActions(tester);
-    expect(find.text('Situation management'), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('presentation-next')));
+    expect(find.text('Review trip assignment'), findsOneWidget);
+    final oldDriver = store.trips.first.driver;
+    final oldVehicle = store.trips.first.vehicle;
+    await tester.tap(next);
     await tester.pumpAndSettle();
     await waitForPresentationActions(tester);
-    expect(store.alertById('alert-tracking').acknowledged, isTrue);
-    expect(find.text('STEP 5 OF 5 · REPORTS'), findsOneWidget);
-    expect(find.text('Operational reports'), findsOneWidget);
+    expect(find.text('Edit sample assignment'), findsOneWidget);
+    expect(
+      store.trips.first.driver != oldDriver ||
+          store.trips.first.vehicle != oldVehicle,
+      isTrue,
+      reason: 'The sample driver or vehicle assignment should change.',
+    );
+    await tester.tap(next);
+    await tester.pumpAndSettle();
+    await waitForPresentationActions(tester);
+    expect(store.trips.length, 3);
+    expect(store.trips.first.status, 'Dispatched');
+    expect(find.text('Advance trip to Dispatched'), findsOneWidget);
 
-    await tester.tap(find.byKey(const ValueKey('finish-presentation')));
+    await tester.tap(find.byKey(const ValueKey('stop-presentation')));
     await tester.pumpAndSettle();
     expect(find.text('Operations overview'), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -395,6 +428,7 @@ void main() {
   testWidgets('replay confirms before restoring a fresh presentation scenario',
       (tester) async {
     final store = DemoStore.memory();
+    final initialTripStatus = store.tripByCode('TR-2048').status;
     addTearDown(store.dispose);
     await tester.pumpWidget(DumptrakPrototypeApp(store: store));
     final launch = find.byKey(const ValueKey('open-stakeholder-walkthrough'));
@@ -418,12 +452,13 @@ void main() {
     await tester.pumpAndSettle();
     await waitForPresentationActions(tester);
 
-    for (var index = 0; index < 4; index++) {
+    for (var index = 0; index < 13; index++) {
       await tester.tap(find.byKey(const ValueKey('presentation-next')));
       await tester.pumpAndSettle();
       await waitForPresentationActions(tester);
     }
-    expect(store.tripByCode('TR-2048').status, 'Approaching');
+    expect(store.trips.length, 3);
+    expect(store.trips.first.status, 'Completed');
     expect(store.alertById('alert-tracking').acknowledged, isTrue);
     expect(find.byKey(const ValueKey('replay-presentation')), findsOneWidget);
 
@@ -431,7 +466,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
-    expect(store.tripByCode('TR-2048').status, 'Approaching');
+    expect(store.tripByCode('TR-2048').status, initialTripStatus);
     expect(store.alertById('alert-tracking').acknowledged, isTrue);
 
     await tester.tap(find.byKey(const ValueKey('replay-presentation')));
@@ -442,10 +477,10 @@ void main() {
     await tester.pumpAndSettle();
     await waitForPresentationActions(tester);
     expect(store.trips, hasLength(2));
-    expect(store.tripByCode('TR-2048').status, 'Approaching');
+    expect(store.tripByCode('TR-2048').status, initialTripStatus);
     expect(store.alertById('alert-tracking').acknowledged, isFalse);
     expect(store.alerts, hasLength(2));
-    expect(find.text('STEP 1 OF 5 · HOME'), findsOneWidget);
+    expect(find.text('STEP 1 OF 14 · HOME'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('stop-presentation')));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
@@ -482,22 +517,22 @@ void main() {
     await tester.pump();
     await tester.tap(find.byKey(const ValueKey('presentation-pause')));
     await tester.pump();
-    expect(find.textContaining('Ayo Bello · Driver'), findsOneWidget);
+    expect(find.textContaining('Driver Ayo Bello'), findsOneWidget);
 
     var sawTouch = false;
     for (var attempt = 0; attempt < 80 && !sawTouch; attempt++) {
       await tester.pump(const Duration(milliseconds: 100));
-      sawTouch = find.text('Open trip').evaluate().isNotEmpty;
+      sawTouch = find.text('Review attention indicators').evaluate().isNotEmpty;
     }
     expect(sawTouch, isTrue);
     await waitForPresentationActions(tester);
 
-    for (var step = 0; step < 3; step++) {
+    for (var step = 0; step < 4; step++) {
       await tester.tap(find.byKey(const ValueKey('presentation-next')));
       await tester.pumpAndSettle();
       await waitForPresentationActions(tester);
     }
-    expect(find.text('STEP 4 OF 5 · ALERTS'), findsOneWidget);
+    expect(find.text('STEP 5 OF 10 · TRIPS'), findsOneWidget);
     expect(store.alertById('alert-tracking').acknowledged, isFalse);
     expect(tester.takeException(), isNull);
 
@@ -535,7 +570,8 @@ void main() {
     var sawPointer = false;
     for (var attempt = 0; attempt < 80 && !sawPointer; attempt++) {
       await tester.pump(const Duration(milliseconds: 50));
-      sawPointer = find.text('Open trip').evaluate().isNotEmpty;
+      sawPointer =
+          find.text('Review attention indicators').evaluate().isNotEmpty;
     }
     expect(sawPointer, isTrue);
     await tester.tap(find.byKey(const ValueKey('stop-presentation')));
@@ -606,6 +642,73 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('SIMULATED — NOT LIVE GPS'), findsOneWidget);
     expect(find.byKey(const ValueKey('main-tab-Map')), findsOneWidget);
+  });
+
+  testWidgets('Driver route records a visit and keeps alerts read-only',
+      (tester) async {
+    final store = DemoStore.memory();
+    addTearDown(store.dispose);
+    await tester.pumpWidget(DumptrakPrototypeApp(store: store));
+    await startGuidedRole(tester, 'Driver');
+
+    for (var index = 0; index < 6; index++) {
+      await advancePresentationStep(tester);
+    }
+
+    expect(find.text('Record customer-site visit'), findsOneWidget);
+    expect(store.visits, hasLength(1));
+    expect(store.visits.single.isCompleted, isTrue);
+    expect(store.alertById('alert-tracking').acknowledged, isFalse);
+    expect(store.alertById('alert-tracking').isOpen, isTrue);
+    expect(tester.takeException(), isNull);
+
+    await tester.tap(find.byKey(const ValueKey('stop-presentation')));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('Supervisor route investigates, confirms, and resolves alert',
+      (tester) async {
+    final store = DemoStore.memory();
+    addTearDown(store.dispose);
+    await tester.pumpWidget(DumptrakPrototypeApp(store: store));
+    await startGuidedRole(tester, 'Supervisor');
+
+    await advancePresentationStep(tester);
+    await advancePresentationStep(tester);
+    await advancePresentationStep(tester);
+
+    final alert = store.alertById('alert-tracking');
+    expect(alert.acknowledged, isTrue);
+    expect(alert.supervisor, DemoAlert.supervisors.first);
+    expect(alert.notes, isNotEmpty);
+
+    await advancePresentationStep(tester);
+    await advancePresentationStep(tester);
+    await advancePresentationStep(tester);
+    expect(store.alertById('alert-tracking').isOpen, isFalse);
+    expect(find.text('Resolve and review history'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    await tester.tap(find.byKey(const ValueKey('stop-presentation')));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('Administrator route visits enterprise workspaces and reports',
+      (tester) async {
+    final store = DemoStore.memory();
+    addTearDown(store.dispose);
+    await tester.pumpWidget(DumptrakPrototypeApp(store: store));
+    await startGuidedRole(tester, 'Administrator');
+
+    for (var index = 0; index < 9; index++) {
+      await advancePresentationStep(tester);
+    }
+
+    expect(find.text('Return to operations'), findsOneWidget);
+    expect(find.textContaining('Administrator Ada Nwosu'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.byKey(const ValueKey('finish-presentation')));
+    await tester.pumpAndSettle();
   });
 
   testWidgets('role and scenario controls fit narrow screens with larger text',

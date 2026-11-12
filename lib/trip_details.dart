@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'demo_store.dart';
@@ -9,14 +11,20 @@ class TripDetails extends StatefulWidget {
     required this.store,
     required this.code,
     this.presentationAdvanceKey,
+    this.presentationEditKey,
     this.presentationBackKey,
+    this.presentationWizardKey,
+    this.presentationWizardNextKey,
     this.scrollController,
   });
 
   final DemoStore store;
   final String code;
   final GlobalKey? presentationAdvanceKey;
+  final GlobalKey? presentationEditKey;
   final GlobalKey? presentationBackKey;
+  final GlobalKey<TripWizardState>? presentationWizardKey;
+  final GlobalKey? presentationWizardNextKey;
   final ScrollController? scrollController;
 
   @override
@@ -61,7 +69,12 @@ class TripDetailsState extends State<TripDetails> {
   Future<void> _edit(Trip trip) async {
     final updated = await Navigator.of(context).push<Trip>(
       MaterialPageRoute(
-        builder: (context) => TripWizard(store: widget.store, trip: trip),
+        builder: (context) => TripWizard(
+          key: widget.presentationWizardKey,
+          store: widget.store,
+          trip: trip,
+          presentationNextKey: widget.presentationWizardNextKey,
+        ),
         fullscreenDialog: true,
       ),
     );
@@ -71,6 +84,16 @@ class TripDetailsState extends State<TripDetails> {
       const SnackBar(
           content: Text('Demo assignments updated and saved locally.')),
     );
+  }
+
+  void editForPresentation() {
+    final trip = widget.store.trips
+        .where((trip) => trip.code == widget.code)
+        .firstOrNull;
+    if (trip == null || !trip.canEdit) {
+      throw StateError('The selected demo trip cannot be edited.');
+    }
+    unawaited(_edit(trip));
   }
 
   String _timestamp(DateTime at) {
@@ -158,12 +181,15 @@ class TripDetailsState extends State<TripDetails> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    OutlinedButton.icon(
-                      key: const ValueKey('edit-trip'),
-                      onPressed:
-                          busy || !trip.canEdit ? null : () => _edit(trip),
-                      icon: const Icon(Icons.edit_outlined),
-                      label: const Text('Edit demo assignments'),
+                    KeyedSubtree(
+                      key: widget.presentationEditKey,
+                      child: OutlinedButton.icon(
+                        key: const ValueKey('edit-trip'),
+                        onPressed:
+                            busy || !trip.canEdit ? null : () => _edit(trip),
+                        icon: const Icon(Icons.edit_outlined),
+                        label: const Text('Edit demo assignments'),
+                      ),
                     ),
                     const SizedBox(height: 8),
                     const Text(

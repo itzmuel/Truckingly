@@ -12,6 +12,8 @@ class ReportsPage extends StatefulWidget {
     this.alerts = const [],
     this.visits = const [],
     this.presentationCustomerVisitsKey,
+    this.presentationSectionKey,
+    this.presentationSection,
     this.scrollController,
   });
 
@@ -20,13 +22,15 @@ class ReportsPage extends StatefulWidget {
   final List<DemoAlert> alerts;
   final List<DemoSiteVisit> visits;
   final GlobalKey? presentationCustomerVisitsKey;
+  final GlobalKey? presentationSectionKey;
+  final String? presentationSection;
   final ScrollController? scrollController;
 
   @override
-  State<ReportsPage> createState() => _ReportsPageState();
+  ReportsPageState createState() => ReportsPageState();
 }
 
-class _ReportsPageState extends State<ReportsPage> {
+class ReportsPageState extends State<ReportsPage> {
   static const _sections = [
     'Demo analytics',
     'Customer visits',
@@ -52,6 +56,13 @@ class _ReportsPageState extends State<ReportsPage> {
       '${value.year}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
 
   String get _period => '${_date(_from)} to ${_date(_to)}';
+
+  void selectSectionForPresentation(String section) {
+    if (!_sections.contains(section)) {
+      throw ArgumentError.value(section, 'section', 'Unknown report section.');
+    }
+    setState(() => _section = section);
+  }
 
   int get _days =>
       DateTime.utc(_to.year, _to.month, _to.day)
@@ -103,7 +114,9 @@ class _ReportsPageState extends State<ReportsPage> {
                 KeyedSubtree(
                   key: section == 'Customer visits'
                       ? widget.presentationCustomerVisitsKey
-                      : null,
+                      : section == widget.presentationSection
+                          ? widget.presentationSectionKey
+                          : null,
                   child: ChoiceChip(
                     key: ValueKey('report-section-$section'),
                     label: ConstrainedBox(
