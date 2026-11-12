@@ -4,10 +4,20 @@ import 'demo_store.dart';
 import 'trip_wizard.dart';
 
 class TripDetails extends StatefulWidget {
-  const TripDetails({super.key, required this.store, required this.code});
+  const TripDetails({
+    super.key,
+    required this.store,
+    required this.code,
+    this.presentationAdvanceKey,
+    this.presentationBackKey,
+    this.scrollController,
+  });
 
   final DemoStore store;
   final String code;
+  final GlobalKey? presentationAdvanceKey;
+  final GlobalKey? presentationBackKey;
+  final ScrollController? scrollController;
 
   @override
   State<TripDetails> createState() => _TripDetailsState();
@@ -73,14 +83,24 @@ class _TripDetailsState extends State<TripDetails> {
           child: Scaffold(
             appBar: AppBar(
               title: Text(widget.code),
-              leading: IconButton(
-                tooltip: 'Back to trips',
-                onPressed: busy ? null : () => Navigator.of(context).pop(),
-                icon: const Icon(Icons.arrow_back_rounded),
-              ),
+              leading: widget.presentationBackKey == null
+                  ? IconButton(
+                      tooltip: 'Back to trips',
+                      onPressed: busy ? null : () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.arrow_back_rounded),
+                    )
+                  : KeyedSubtree(
+                      key: widget.presentationBackKey,
+                      child: IconButton(
+                        tooltip: 'Back to trips',
+                        onPressed: busy ? null : () => Navigator.of(context).pop(),
+                        icon: const Icon(Icons.arrow_back_rounded),
+                      ),
+                    ),
             ),
             body: SafeArea(
               child: ListView(
+                controller: widget.scrollController,
                 padding: const EdgeInsets.all(20),
                 children: [
                   const Text(
@@ -181,13 +201,16 @@ class _TripDetailsState extends State<TripDetails> {
                       ),
                     if (busy) const LinearProgressIndicator(),
                     const SizedBox(height: 12),
-                    FilledButton.icon(
-                      key: const ValueKey('advance-trip'),
-                      onPressed: busy || !trip.canAdvance ? null : _advance,
-                      icon: const Icon(Icons.skip_next_rounded),
-                      label: Text(trip.canAdvance
-                          ? 'Simulate: ${Trip.journey[Trip.journey.indexOf(trip.status) + 1]}'
-                          : 'No further journey stages'),
+                    KeyedSubtree(
+                      key: widget.presentationAdvanceKey,
+                      child: FilledButton.icon(
+                        key: const ValueKey('advance-trip'),
+                        onPressed: busy || !trip.canAdvance ? null : _advance,
+                        icon: const Icon(Icons.skip_next_rounded),
+                        label: Text(trip.canAdvance
+                            ? 'Simulate: ${Trip.journey[Trip.journey.indexOf(trip.status) + 1]}'
+                            : 'No further journey stages'),
+                      ),
                     ),
                     const SizedBox(height: 12),
                     const Text(

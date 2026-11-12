@@ -11,12 +11,16 @@ class ReportsPage extends StatefulWidget {
     this.trips = const [],
     this.alerts = const [],
     this.visits = const [],
+    this.presentationCustomerVisitsKey,
+    this.scrollController,
   });
 
   final VoidCallback onBack;
   final List<Trip> trips;
   final List<DemoAlert> alerts;
   final List<DemoSiteVisit> visits;
+  final GlobalKey? presentationCustomerVisitsKey;
+  final ScrollController? scrollController;
 
   @override
   State<ReportsPage> createState() => _ReportsPageState();
@@ -77,6 +81,7 @@ class _ReportsPageState extends State<ReportsPage> {
   Widget build(BuildContext context) {
     return ListView(
       key: const PageStorageKey('reports-scroll'),
+      controller: widget.scrollController,
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
       children: [
         Align(
@@ -95,15 +100,20 @@ class _ReportsPageState extends State<ReportsPage> {
             runSpacing: 8,
             children: [
               for (final section in _sections)
-                ChoiceChip(
-                  key: ValueKey('report-section-$section'),
-                  label: ConstrainedBox(
-                    constraints:
-                        BoxConstraints(maxWidth: constraints.maxWidth - 72),
-                    child: Text(section),
+                KeyedSubtree(
+                  key: section == 'Customer visits'
+                      ? widget.presentationCustomerVisitsKey
+                      : null,
+                  child: ChoiceChip(
+                    key: ValueKey('report-section-$section'),
+                    label: ConstrainedBox(
+                      constraints:
+                          BoxConstraints(maxWidth: constraints.maxWidth - 72),
+                      child: Text(section),
+                    ),
+                    selected: section == _section,
+                    onSelected: (_) => setState(() => _section = section),
                   ),
-                  selected: section == _section,
-                  onSelected: (_) => setState(() => _section = section),
                 ),
             ],
           ),
@@ -141,7 +151,8 @@ class _ReportsPageState extends State<ReportsPage> {
                   key: const ValueKey('report-completed-trips'),
                 ),
                 const SizedBox(height: 8),
-                Text('Open alerts: ${widget.alerts.where((alert) => alert.isOpen).length}'),
+                Text(
+                    'Open alerts: ${widget.alerts.where((alert) => alert.isOpen).length}'),
                 const SizedBox(height: 12),
                 const Text(
                   'SIMULATED DATA · All saved demo trips, independent of visit date filters. '
@@ -171,8 +182,8 @@ class _ReportsPageState extends State<ReportsPage> {
 
   List<Widget> _demoAnalytics() {
     final now = DateTime.now();
-    final all = DemoAnalytics(
-        trips: widget.trips, alerts: widget.alerts, now: now);
+    final all =
+        DemoAnalytics(trips: widget.trips, alerts: widget.alerts, now: now);
     final report = DemoAnalytics(
       trips: widget.trips,
       alerts: widget.alerts,
@@ -199,8 +210,8 @@ class _ReportsPageState extends State<ReportsPage> {
           for (final name in ['All vehicles', ...all.vehicles])
             DropdownMenuItem(value: name, child: Text(name)),
         ],
-        onChanged: (value) => setState(
-            () => _vehicle = value == 'All vehicles' ? null : value),
+        onChanged: (value) =>
+            setState(() => _vehicle = value == 'All vehicles' ? null : value),
       ),
       const SizedBox(height: 12),
       Text(
@@ -210,7 +221,8 @@ class _ReportsPageState extends State<ReportsPage> {
       ),
       if (report.trips.isEmpty) ...[
         const SizedBox(height: 12),
-        const Text('No saved demo trips in this scope. Charts below show zero records.'),
+        const Text(
+            'No saved demo trips in this scope. Charts below show zero records.'),
       ],
       const SizedBox(height: 16),
       _panel(
@@ -223,7 +235,8 @@ class _ReportsPageState extends State<ReportsPage> {
         Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('${_date(daily.keys.first)} to ${_date(daily.keys.last)} · Africa/Lagos (UTC+1)'),
+            Text(
+                '${_date(daily.keys.first)} to ${_date(daily.keys.last)} · Africa/Lagos (UTC+1)'),
             const SizedBox(height: 12),
             _countChart({
               for (final day in daily.entries) _date(day.key): day.value,
@@ -242,7 +255,8 @@ class _ReportsPageState extends State<ReportsPage> {
         Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text('Saved trip assignments, not utilization, distance, or driving hours.'),
+            const Text(
+                'Saved trip assignments, not utilization, distance, or driving hours.'),
             const SizedBox(height: 12),
             for (final entry in report.workload.entries)
               Padding(
@@ -268,7 +282,8 @@ class _ReportsPageState extends State<ReportsPage> {
             ),
             const SizedBox(height: 12),
             if (report.openAlerts == 0)
-              const Text('No open demo alerts in this scope. This is not a safety assessment.')
+              const Text(
+                  'No open demo alerts in this scope. This is not a safety assessment.')
             else
               _countChart(report.openAlertKinds, 'alert-kind'),
             const Text(
@@ -340,16 +355,48 @@ class _ReportsPageState extends State<ReportsPage> {
         ? '${value.toStringAsFixed(value == value.roundToDouble() ? 0 : 1)} min'
         : '${(value / 60).toStringAsFixed(1)} hr';
     final metrics = [
-      ('Completed visits', '${analytics.completed.length}', 'Explicit arrival and departure events'),
-      ('Unique assets visiting', '${analytics.uniqueVehicles}', 'Sample vehicles, not visits'),
-      ('Sites served', '${analytics.sitesServed}', 'Sample sites with recorded arrivals'),
-      ('Customers served', '${analytics.customersServed}', 'Sample site-to-customer mapping'),
+      (
+        'Completed visits',
+        '${analytics.completed.length}',
+        'Explicit arrival and departure events'
+      ),
+      (
+        'Unique assets visiting',
+        '${analytics.uniqueVehicles}',
+        'Sample vehicles, not visits'
+      ),
+      (
+        'Sites served',
+        '${analytics.sitesServed}',
+        'Sample sites with recorded arrivals'
+      ),
+      (
+        'Customers served',
+        '${analytics.customersServed}',
+        'Sample site-to-customer mapping'
+      ),
       ('Total dwell', minutes(dwell), 'Completed visits only'),
-      ('Average dwell', average == null ? 'Unknown' : minutes(average), 'Completed visits only'),
-      ('Open visits', '${analytics.open.length}', 'Arrival recorded; departure not recorded'),
-      ('Incomplete visits', '${analytics.incomplete.length}', 'Explicitly closed as incomplete'),
+      (
+        'Average dwell',
+        average == null ? 'Unknown' : minutes(average),
+        'Completed visits only'
+      ),
+      (
+        'Open visits',
+        '${analytics.open.length}',
+        'Arrival recorded; departure not recorded'
+      ),
+      (
+        'Incomplete visits',
+        '${analytics.incomplete.length}',
+        'Explicitly closed as incomplete'
+      ),
       ('GPS reporting gaps', 'Not evaluated', 'No GPS evidence is available'),
-      ('On a trip / outside a trip', '${analytics.onTrip} / ${analytics.outsideTrip}', 'Linked trips at arrival'),
+      (
+        'On a trip / outside a trip',
+        '${analytics.onTrip} / ${analytics.outsideTrip}',
+        'Linked trips at arrival'
+      ),
     ];
 
     return [
@@ -521,7 +568,8 @@ class _ReportsPageState extends State<ReportsPage> {
             const SizedBox(height: 12),
             Semantics(
               container: true,
-              label: 'Recorded demo visits and completed visits from ${_date(_from)} to ${_date(_to)}.',
+              label:
+                  'Recorded demo visits and completed visits from ${_date(_from)} to ${_date(_to)}.',
               child: SizedBox(
                 height: 130,
                 child: CustomPaint(
@@ -587,9 +635,10 @@ class _ReportsPageState extends State<ReportsPage> {
             children: [
               const Icon(Icons.map_outlined, size: 36),
               const SizedBox(height: 12),
-              Text(analytics.visits.isEmpty
-                  ? 'No sample visits to map in this period'
-                  : 'Sample site names only · No coordinates',
+              Text(
+                  analytics.visits.isEmpty
+                      ? 'No sample visits to map in this period'
+                      : 'Sample site names only · No coordinates',
                   textAlign: TextAlign.center),
               const SizedBox(height: 8),
               const Text(
@@ -626,7 +675,8 @@ class _ReportsPageState extends State<ReportsPage> {
                   : 'Saved demo events only',
             ),
             _fact('Scope', _scope),
-            _fact('Sources', 'Locally saved simulated arrival/departure records'),
+            _fact(
+                'Sources', 'Locally saved simulated arrival/departure records'),
             const SizedBox(height: 8),
             const Text(
               'GPS coverage and unrecorded visits are not evaluated. '
@@ -760,8 +810,8 @@ class _VisitActivityPainter extends CustomPainter {
     canvas.drawLine(Offset.zero, Offset(0, size.height - 8), axis);
     canvas.drawLine(
         Offset(0, size.height - 8), Offset(size.width, size.height - 8), axis);
-    final maximum =
-        counts.fold<int>(0, (max, item) => item.visits > max ? item.visits : max);
+    final maximum = counts.fold<int>(
+        0, (max, item) => item.visits > max ? item.visits : max);
     if (maximum == 0 || counts.isEmpty) return;
     final bucketCount = counts.length < 60 ? counts.length : 60;
     final bucketWidth = size.width / bucketCount;

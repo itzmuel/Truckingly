@@ -15,9 +15,26 @@ Color _statusColor(DemoVehicleStatus status) => switch (status) {
     };
 
 class FleetMapPage extends StatefulWidget {
-  const FleetMapPage({super.key, required this.store});
+  const FleetMapPage({
+    super.key,
+    required this.store,
+    this.presentationVehicleId,
+    this.presentationMarkerKey,
+    this.presentationOpenTripKey,
+    this.presentationBackKey,
+    this.scrollController,
+    this.vehicleDetailsScrollController,
+    this.tripDetailsScrollController,
+  });
 
   final DemoStore store;
+  final String? presentationVehicleId;
+  final GlobalKey? presentationMarkerKey;
+  final GlobalKey? presentationOpenTripKey;
+  final GlobalKey? presentationBackKey;
+  final ScrollController? scrollController;
+  final ScrollController? vehicleDetailsScrollController;
+  final ScrollController? tripDetailsScrollController;
 
   @override
   State<FleetMapPage> createState() => _FleetMapPageState();
@@ -46,6 +63,7 @@ class _FleetMapPageState extends State<FleetMapPage> {
             child: FractionallySizedBox(
               heightFactor: 0.8,
               child: ListView(
+                controller: widget.vehicleDetailsScrollController,
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
                 children: [
                   Row(
@@ -68,15 +86,27 @@ class _FleetMapPageState extends State<FleetMapPage> {
                   for (final (label, value) in [
                     ('Vehicle status', vehicle.status.label),
                     ('Driver', vehicle.driver),
-                    ('Assigned trip', vehicle.trip?.code ?? 'No assigned demo trip'),
-                    ('Trip status', vehicle.trip?.status ?? 'Not on a demo trip'),
+                    (
+                      'Assigned trip',
+                      vehicle.trip?.code ?? 'No assigned demo trip'
+                    ),
+                    (
+                      'Trip status',
+                      vehicle.trip?.status ?? 'Not on a demo trip'
+                    ),
                     ('Route', vehicle.trip?.route ?? 'No assigned demo route'),
-                    ('Simulated speed', vehicle.speed == null
-                        ? 'Unknown · Reporting gap'
-                        : '${vehicle.speed} km/h'),
+                    (
+                      'Simulated speed',
+                      vehicle.speed == null
+                          ? 'Unknown · Reporting gap'
+                          : '${vehicle.speed} km/h'
+                    ),
                     ('Last sample location', vehicle.location),
                     ('Sample reporting', vehicle.report),
-                    ('Maintenance', 'Not evaluated · No maintenance data connected'),
+                    (
+                      'Maintenance',
+                      'Not evaluated · No maintenance data connected'
+                    ),
                   ])
                     Padding(
                       padding: const EdgeInsets.only(bottom: 16),
@@ -93,11 +123,15 @@ class _FleetMapPageState extends State<FleetMapPage> {
                       ),
                     ),
                   if (vehicle.trip != null)
-                    FilledButton.icon(
-                      key: const ValueKey('vehicle-open-trip'),
-                      onPressed: () => Navigator.pop(context, vehicle.trip!.code),
-                      icon: const Icon(Icons.route),
-                      label: const Text('Open demo trip'),
+                    KeyedSubtree(
+                      key: widget.presentationOpenTripKey,
+                      child: FilledButton.icon(
+                        key: const ValueKey('vehicle-open-trip'),
+                        onPressed: () =>
+                            Navigator.pop(context, vehicle.trip!.code),
+                        icon: const Icon(Icons.route),
+                        label: const Text('Open demo trip'),
+                      ),
                     ),
                 ],
               ),
@@ -109,7 +143,12 @@ class _FleetMapPageState extends State<FleetMapPage> {
     if (!mounted || code == null) return;
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
-        builder: (context) => TripDetails(store: widget.store, code: code),
+        builder: (context) => TripDetails(
+          store: widget.store,
+          code: code,
+          presentationBackKey: widget.presentationBackKey,
+          scrollController: widget.tripDetailsScrollController,
+        ),
       ),
     );
   }
@@ -122,6 +161,7 @@ class _FleetMapPageState extends State<FleetMapPage> {
         final fleet = demoFleet(widget.store);
         return ListView(
           key: const PageStorageKey('fleet-map-scroll'),
+          controller: widget.scrollController,
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
           children: [
             const Text('Fleet map',
@@ -172,7 +212,8 @@ class _FleetMapPageState extends State<FleetMapPage> {
                                 right: 12,
                                 top: 8 + index * 88,
                                 child: Text(
-                                  fleet[index].trip?.route ?? 'Demo depot · No route',
+                                  fleet[index].trip?.route ??
+                                      'Demo depot · No route',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
@@ -181,22 +222,35 @@ class _FleetMapPageState extends State<FleetMapPage> {
                               ),
                             for (var index = 0; index < fleet.length; index++)
                               Positioned(
-                                left: 12 + fleet[index].routePosition * (width - 100),
+                                left: 12 +
+                                    fleet[index].routePosition * (width - 100),
                                 top: 28 + index * 88,
                                 child: Semantics(
-                                  label: '${fleet[index].id}, ${fleet[index].status.label}, simulated location',
-                                  child: FilledButton(
-                                    key: ValueKey('map-marker-${fleet[index].id}'),
-                                    style: FilledButton.styleFrom(
-                                      backgroundColor: _statusColor(fleet[index].status),
-                                      foregroundColor: Colors.black,
-                                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                                      minimumSize: const Size(76, 48),
+                                  label:
+                                      '${fleet[index].id}, ${fleet[index].status.label}, simulated location',
+                                  child: KeyedSubtree(
+                                    key: fleet[index].id ==
+                                            widget.presentationVehicleId
+                                        ? widget.presentationMarkerKey
+                                        : null,
+                                    child: FilledButton(
+                                      key: ValueKey(
+                                          'map-marker-${fleet[index].id}'),
+                                      style: FilledButton.styleFrom(
+                                        backgroundColor:
+                                            _statusColor(fleet[index].status),
+                                        foregroundColor: Colors.black,
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 8),
+                                        minimumSize: const Size(76, 48),
+                                      ),
+                                      onPressed: () =>
+                                          _showVehicle(fleet[index].id),
+                                      child: Text(fleet[index].id,
+                                          style: const TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w800)),
                                     ),
-                                    onPressed: () => _showVehicle(fleet[index].id),
-                                    child: Text(fleet[index].id,
-                                        style: const TextStyle(fontSize: 11,
-                                            fontWeight: FontWeight.w800)),
                                   ),
                                 ),
                               ),
@@ -286,7 +340,8 @@ class _RoutesPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.drawRect(Offset.zero & size, Paint()..color = const Color(0xFF141E26));
+    canvas.drawRect(
+        Offset.zero & size, Paint()..color = const Color(0xFF141E26));
     final grid = Paint()..color = const Color(0xFF21303C);
     for (var x = 0.0; x < size.width; x += 24) {
       canvas.drawLine(Offset(x, 0), Offset(x, size.height), grid);

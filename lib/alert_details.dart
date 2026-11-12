@@ -3,10 +3,20 @@ import 'package:flutter/material.dart';
 import 'demo_store.dart';
 
 class AlertDetails extends StatefulWidget {
-  const AlertDetails({super.key, required this.store, required this.id});
+  const AlertDetails({
+    super.key,
+    required this.store,
+    required this.id,
+    this.presentationAcknowledgeKey,
+    this.presentationBackKey,
+    this.scrollController,
+  });
 
   final DemoStore store;
   final String id;
+  final GlobalKey? presentationAcknowledgeKey;
+  final GlobalKey? presentationBackKey;
+  final ScrollController? scrollController;
 
   @override
   State<AlertDetails> createState() => _AlertDetailsState();
@@ -26,7 +36,8 @@ class _AlertDetailsState extends State<AlertDetails> {
     super.dispose();
   }
 
-  Future<void> _save(Future<void> Function() action, {VoidCallback? onSaved}) async {
+  Future<void> _save(Future<void> Function() action,
+      {VoidCallback? onSaved}) async {
     setState(() {
       _saving = true;
       _error = null;
@@ -74,8 +85,8 @@ class _AlertDetailsState extends State<AlertDetails> {
       ),
     );
     if (confirmed == true && mounted) {
-      await _save(() => widget.store.resolveAlert(
-          widget.id, _reason.text, DateTime.now()));
+      await _save(() =>
+          widget.store.resolveAlert(widget.id, _reason.text, DateTime.now()));
     }
   }
 
@@ -84,7 +95,8 @@ class _AlertDetailsState extends State<AlertDetails> {
     return ListenableBuilder(
       listenable: widget.store,
       builder: (context, child) {
-        final matching = widget.store.alerts.where((alert) => alert.id == widget.id);
+        final matching =
+            widget.store.alerts.where((alert) => alert.id == widget.id);
         final alert = matching.isEmpty ? null : matching.first;
         final busy = _saving || widget.store.saving;
         return PopScope<void>(
@@ -92,18 +104,29 @@ class _AlertDetailsState extends State<AlertDetails> {
           child: Scaffold(
             appBar: AppBar(
               title: const Text('Demo alert'),
-              leading: IconButton(
-                tooltip: 'Back to alerts',
-                onPressed: busy ? null : () => Navigator.pop(context),
-                icon: const Icon(Icons.arrow_back),
-              ),
+              leading: widget.presentationBackKey == null
+                  ? IconButton(
+                      tooltip: 'Back to alerts',
+                      onPressed: busy ? null : () => Navigator.pop(context),
+                      icon: const Icon(Icons.arrow_back),
+                    )
+                  : KeyedSubtree(
+                      key: widget.presentationBackKey,
+                      child: IconButton(
+                        tooltip: 'Back to alerts',
+                        onPressed: busy ? null : () => Navigator.pop(context),
+                        icon: const Icon(Icons.arrow_back),
+                      ),
+                    ),
             ),
             body: SafeArea(
               child: ListView(
+                controller: widget.scrollController,
                 padding: const EdgeInsets.all(20),
                 children: [
                   const Text('DEMO / SIMULATED DATA',
-                      style: TextStyle(color: Color(0xFF0088FF),
+                      style: TextStyle(
+                          color: Color(0xFF0088FF),
                           fontWeight: FontWeight.w700)),
                   const SizedBox(height: 12),
                   const Text(
@@ -116,9 +139,11 @@ class _AlertDetailsState extends State<AlertDetails> {
                     const Text('This alert is no longer in the saved demo.')
                   else ...[
                     Text(alert.title,
-                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700)),
+                        style: const TextStyle(
+                            fontSize: 24, fontWeight: FontWeight.w700)),
                     const SizedBox(height: 12),
-                    Text('${alert.tripCode} · ${alert.kind} · ${alert.severity}'),
+                    Text(
+                        '${alert.tripCode} · ${alert.kind} · ${alert.severity}'),
                     const SizedBox(height: 12),
                     Text(alert.detail, style: const TextStyle(height: 1.6)),
                     const SizedBox(height: 20),
@@ -127,32 +152,43 @@ class _AlertDetailsState extends State<AlertDetails> {
                       key: const ValueKey('alert-detail-status'),
                     ),
                     const SizedBox(height: 12),
-                    Text('Assigned supervisor: ${alert.supervisor ?? 'Unassigned'}'),
+                    Text(
+                        'Assigned supervisor: ${alert.supervisor ?? 'Unassigned'}'),
                     const SizedBox(height: 20),
                     if (alert.isOpen) ...[
-                      FilledButton(
-                        key: const ValueKey('acknowledge-alert'),
-                        onPressed: busy || alert.acknowledged
-                            ? null
-                            : () => _save(() => widget.store.acknowledgeAlert(widget.id)),
-                        child: Text(alert.acknowledged ? 'Acknowledged' : 'Acknowledge demo alert'),
+                      KeyedSubtree(
+                        key: widget.presentationAcknowledgeKey,
+                        child: FilledButton(
+                          key: const ValueKey('acknowledge-alert'),
+                          onPressed: busy || alert.acknowledged
+                              ? null
+                              : () => _save(() =>
+                                  widget.store.acknowledgeAlert(widget.id)),
+                          child: Text(alert.acknowledged
+                              ? 'Acknowledged'
+                              : 'Acknowledge demo alert'),
+                        ),
                       ),
                       const SizedBox(height: 20),
                       DropdownButtonFormField<String>(
                         key: const ValueKey('alert-supervisor'),
                         initialValue: _supervisor ?? alert.supervisor,
                         isExpanded: true,
-                        decoration: const InputDecoration(labelText: 'Sample supervisor'),
+                        decoration: const InputDecoration(
+                            labelText: 'Sample supervisor'),
                         items: [
                           for (final name in DemoAlert.supervisors)
                             DropdownMenuItem(value: name, child: Text(name)),
                         ],
-                        onChanged: busy ? null : (value) => setState(() => _supervisor = value),
+                        onChanged: busy
+                            ? null
+                            : (value) => setState(() => _supervisor = value),
                       ),
                       const SizedBox(height: 8),
                       OutlinedButton(
                         key: const ValueKey('assign-alert'),
-                        onPressed: busy || (_supervisor ?? alert.supervisor) == null
+                        onPressed: busy ||
+                                (_supervisor ?? alert.supervisor) == null
                             ? null
                             : () => _save(() => widget.store.assignAlert(
                                 widget.id, _supervisor ?? alert.supervisor!)),
@@ -166,19 +202,24 @@ class _AlertDetailsState extends State<AlertDetails> {
                         maxLength: 500,
                         minLines: 2,
                         maxLines: 5,
-                        decoration: const InputDecoration(labelText: 'Add a demo note'),
+                        decoration:
+                            const InputDecoration(labelText: 'Add a demo note'),
                       ),
                       OutlinedButton(
                         key: const ValueKey('save-alert-note'),
-                        onPressed: busy ? null : () => _save(
-                            () => widget.store.addAlertNote(widget.id, _note.text),
-                            onSaved: _note.clear),
+                        onPressed: busy
+                            ? null
+                            : () => _save(
+                                () => widget.store
+                                    .addAlertNote(widget.id, _note.text),
+                                onSaved: _note.clear),
                         child: const Text('Save note'),
                       ),
                     ],
                     const SizedBox(height: 20),
                     const Text('Saved notes',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                        style: TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.w700)),
                     const SizedBox(height: 8),
                     if (alert.notes.isEmpty) const Text('No demo notes yet.'),
                     for (final note in alert.notes)
@@ -206,16 +247,19 @@ class _AlertDetailsState extends State<AlertDetails> {
                     ] else ...[
                       Text('Resolution: ${alert.resolution}'),
                       const SizedBox(height: 12),
-                      Text('Simulated closure time (UTC): ${alert.resolvedAt!.toUtc().toIso8601String()}'),
+                      Text(
+                          'Simulated closure time (UTC): ${alert.resolvedAt!.toUtc().toIso8601String()}'),
                       const SizedBox(height: 12),
-                      const Text('History is read-only. Closure does not demonstrate that the underlying condition cleared.'),
+                      const Text(
+                          'History is read-only. Closure does not demonstrate that the underlying condition cleared.'),
                     ],
                     if (_error != null) ...[
                       const SizedBox(height: 16),
                       Semantics(
                         liveRegion: true,
                         child: Text(_error!,
-                            style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                            style: TextStyle(
+                                color: Theme.of(context).colorScheme.error)),
                       ),
                     ],
                     if (busy) const LinearProgressIndicator(),

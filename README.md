@@ -65,11 +65,34 @@ original samples.
 The Home screen also has a **Stakeholder walkthrough** shortcut to open the
 scenario selector and walkthrough steps directly.
 
+**Demo Director** offers three presentation modes: Autoplay advances through a
+five-screen sequence on a 3-, 5-, or 8-minute schedule and supports pause,
+resume, previous, next, replay, and stop; Guided waits for the presenter to
+advance after each screen's demonstration; Explore loads the selected scenario
+and returns to the interactive app. Autoplay and Guided visibly animate a
+labeled simulated touch pointer over real app controls, then activate those
+controls: open a trip, advance its journey stage, inspect the assigned vehicle
+on the map, review the scenario alert, and open the Customer visits report.
+The presentation header identifies the selected sample person and role, and
+the narration emphasizes that role's responsibilities. A Driver perspective
+reviews alerts without acknowledging them; the other perspectives acknowledge
+the selected open demo alert. Roles remain display-only, not authentication,
+authorization, or permission enforcement. Starting or replaying a
+presentation requires confirmation because it replaces saved sample trips,
+alerts, and visit events. Stopping or using system Back returns to Home without
+another data change. Automated touches and resulting actions are simulated and
+saved locally; the pointer does not represent a physical touch or user input.
+An acknowledged alert remains open and does not imply the underlying issue was
+resolved or repaired.
+
 The delay scenario uses a sample status label and an alert, not an actual
 calculated delay or arrival time. The incident scenario marks a sample trip as
 Exception and adds an explicitly simulated vehicle alert; it does not report a
 real vehicle condition or notify anyone. Scenario selection and records persist
 locally. Later edits can change the loaded starting scenario's records.
+
+GitHub Actions runs `flutter analyze` and the complete serial Flutter test suite
+for each push and pull request.
 
 ## Interactive demo foundation (Phase 1)
 

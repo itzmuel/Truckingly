@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import 'demo_director.dart';
 import 'demo_store.dart';
 import 'reports_page.dart';
 import 'trip_wizard.dart';
@@ -7,6 +10,7 @@ import 'trip_details.dart';
 import 'fleet_map_page.dart';
 import 'alert_details.dart';
 import 'demo_visit_catalog.dart';
+import 'demo_touch_pointer.dart';
 
 const _blue = Color(0xFF0088FF);
 const _background = Color(0xFF080A0B);
@@ -284,11 +288,38 @@ class _OperationsShellState extends State<OperationsShell> {
   late final DemoStore _demo = widget.store ?? DemoStore.memory();
   _DemoRole _demoRole = _DemoRole.dispatcher;
   DemoScenario _scenarioChoice = DemoScenario.normal;
+  DemoPresentationMode _presentationMode = DemoPresentationMode.guided;
+  _DemoRole _presentationRole = _DemoRole.dispatcher;
+  int _presentationLength = 5;
+  int _presentationStep = 0;
+  int _presentationSecondsRemaining = 0;
+  bool _presentationActive = false;
+  bool _presentationPlaying = false;
+  bool _presentationActionInProgress = false;
+  int _presentationTouchGeneration = 0;
+  final GlobalKey _presentationPrimaryTargetKey = GlobalKey();
+  final GlobalKey _presentationSecondaryTargetKey = GlobalKey();
+  final GlobalKey _presentationTertiaryTargetKey = GlobalKey();
+  final GlobalKey _presentationFourthTargetKey = GlobalKey();
+  final ScrollController _presentationHomeScrollController = ScrollController();
+  final ScrollController _presentationTripsScrollController = ScrollController();
+  final ScrollController _presentationMapScrollController = ScrollController();
+  final ScrollController _presentationAlertsScrollController =
+      ScrollController();
+  final ScrollController _presentationReportsScrollController =
+      ScrollController();
+  final ScrollController _presentationDetailsScrollController =
+      ScrollController();
+  final ScrollController _presentationVehicleSheetScrollController =
+      ScrollController();
+  final Set<int> _completedPresentationActions = {};
+  Timer? _presentationTimer;
 
   @override
   void initState() {
     super.initState();
     _scenarioChoice = _demo.scenario;
+    _presentationRole = _demoRole;
     _demo.addListener(_refreshDemo);
   }
 
@@ -307,12 +338,46 @@ class _OperationsShellState extends State<OperationsShell> {
 
   @override
   void dispose() {
+    _presentationTimer?.cancel();
+    _presentationHomeScrollController.dispose();
+    _presentationTripsScrollController.dispose();
+    _presentationMapScrollController.dispose();
+    _presentationAlertsScrollController.dispose();
+    _presentationReportsScrollController.dispose();
+    _presentationDetailsScrollController.dispose();
+    _presentationVehicleSheetScrollController.dispose();
     _demo.removeListener(_refreshDemo);
     if (widget.store == null) _demo.dispose();
     super.dispose();
   }
 
   List<Trip> get _trips => _demo.trips;
+  Trip? get _presentationTrip {
+    for (final trip in _demo.activeTrips) {
+      if (trip.canAdvance) return trip;
+    }
+    return _demo.activeTrips.isEmpty ? null : _demo.activeTrips.first;
+  }
+
+  String get _presentationAlertId => switch (_demo.scenario) {
+        DemoScenario.normal => 'alert-tracking',
+        DemoScenario.delayedDelivery => 'alert-delay-demo',
+        DemoScenario.vehicleIncident => 'alert-incident-demo',
+      };
+
+  String _presentationNarration(DemoPresentationStep step) {
+    final focus = switch (_presentationRole) {
+      _DemoRole.administrator =>
+        'Administrator ${_presentationRole.name} oversees fleet-wide activity and operational reporting.',
+      _DemoRole.dispatcher =>
+        'Dispatcher ${_presentationRole.name} checks assignments and monitors trip progress.',
+      _DemoRole.supervisor =>
+        'Supervisor ${_presentationRole.name} reviews exceptions and coordinates alert follow-up.',
+      _DemoRole.driver =>
+        'Driver ${_presentationRole.name} follows an assigned journey and reports what the app records.',
+    };
+    return '$focus ${step.narration} Perspective is a demo lens, not access control.';
+  }
 
   static const _alertSections = [
     'Needs action',
@@ -361,11 +426,18 @@ class _OperationsShellState extends State<OperationsShell> {
   @override
   Widget build(BuildContext context) {
     return PopScope<void>(
-      canPop: _tab == 0 && _morePage == null,
+      canPop: !_presentationActive && _tab == 0 && _morePage == null,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
+        if (_presentationActive) {
+          _stopPresentation();
+          return;
+        }
         setState(() {
-          if (_morePage != null) {
+          if (_morePage == 'Walkthrough') {
+            _tab = 0;
+            _morePage = null;
+          } else if (_morePage != null) {
             _morePage = null;
           } else {
             _tab = 0;
@@ -427,21 +499,24 @@ class _OperationsShellState extends State<OperationsShell> {
           top: false,
           child: _buildPage(),
         ),
-        bottomNavigationBar: _BottomTabs(
-          selectedIndex: _tab,
-          items: _tabs,
-          onSelected: (index) {
-            setState(() {
-              _tab = index;
-              _morePage = null;
-            });
-          },
-        ),
+        bottomNavigationBar: _presentationActive
+            ? null
+            : _BottomTabs(
+                selectedIndex: _tab,
+                items: _tabs,
+                onSelected: (index) {
+                  setState(() {
+                    _tab = index;
+                    _morePage = null;
+                  });
+                },
+              ),
       ),
     );
   }
 
   Widget _buildPage() {
+    if (_presentationActive) return _presentationPage();
     if (_tab == 4 && _morePage != null) return _moreDetailPage();
 
     switch (_tab) {
@@ -458,9 +533,14 @@ class _OperationsShellState extends State<OperationsShell> {
     }
   }
 
-  Widget _pageScroll(List<Widget> children) {
+  Widget _pageScroll(
+    List<Widget> children, {
+    ScrollController? controller,
+  }) {
     return ListView(
-      key: ValueKey('page-$_tab-${_morePage ?? 'main'}'),
+      key: ValueKey(
+          'page-${_presentationActive ? _presentationStep : '$_tab-${_morePage ?? 'main'}'}'),
+      controller: controller,
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
       children: children,
     );
@@ -586,7 +666,14 @@ class _OperationsShellState extends State<OperationsShell> {
           detail: 'All simulated trips have ended. Reset Demo to start again.',
         ),
       for (final trip in _demo.activeTrips.take(2)) ...[
-        TripCard(trip: trip, onTap: () => _openTrip(trip.code)),
+        KeyedSubtree(
+          key: _presentationActive &&
+                  _presentationStep == 0 &&
+                  trip.code == _presentationTrip?.code
+              ? _presentationPrimaryTargetKey
+              : null,
+          child: TripCard(trip: trip, onTap: () => _openTrip(trip.code)),
+        ),
         const SizedBox(height: 10),
       ],
       const SizedBox(height: 12),
@@ -616,7 +703,7 @@ class _OperationsShellState extends State<OperationsShell> {
           ],
         ),
       ),
-    ]);
+    ], controller: _presentationHomeScrollController);
   }
 
   Widget _tripsPage() {
@@ -693,11 +780,18 @@ class _OperationsShellState extends State<OperationsShell> {
               : 'No trips match "$_selectedTripStatus". Try another status or create a trip.',
         )
       else
-        for (final trip in visibleTrips) ...[
-          TripCard(
-            trip: trip,
-            showProgress: true,
-            onTap: () => _openTrip(trip.code),
+        for (var index = 0; index < visibleTrips.length; index++) ...[
+          KeyedSubtree(
+            key: _presentationActive &&
+                    _presentationStep == 1 &&
+                    visibleTrips[index].code == _presentationTrip?.code
+                ? _presentationPrimaryTargetKey
+                : null,
+            child: TripCard(
+              trip: visibleTrips[index],
+              showProgress: true,
+              onTap: () => _openTrip(visibleTrips[index].code),
+            ),
           ),
           const SizedBox(height: 12),
         ],
@@ -707,11 +801,27 @@ class _OperationsShellState extends State<OperationsShell> {
         textAlign: TextAlign.center,
         style: TextStyle(color: _muted, fontSize: 11, height: 1.5),
       ),
-    ]);
+    ], controller: _presentationTripsScrollController);
   }
 
   Widget _mapPage() {
-    return FleetMapPage(store: _demo);
+    final isPresentationMap =
+        _presentationActive && _presentationStep == 2;
+    return FleetMapPage(
+      store: _demo,
+      presentationVehicleId:
+          isPresentationMap ? _presentationTrip?.vehicle : null,
+      presentationMarkerKey:
+          isPresentationMap ? _presentationPrimaryTargetKey : null,
+      presentationOpenTripKey:
+          isPresentationMap ? _presentationSecondaryTargetKey : null,
+      presentationBackKey:
+          isPresentationMap ? _presentationFourthTargetKey : null,
+      scrollController: _presentationMapScrollController,
+      vehicleDetailsScrollController:
+          _presentationVehicleSheetScrollController,
+      tripDetailsScrollController: _presentationDetailsScrollController,
+    );
   }
 
   Widget _alertsPage() {
@@ -835,6 +945,12 @@ class _OperationsShellState extends State<OperationsShell> {
                   reference:
                       '${_trips.firstWhere((trip) => trip.code == alert.tripCode).vehicle} · ${alert.tripCode}',
                   expanded: true,
+                  presentationManageKey:
+                      _presentationActive &&
+                              _presentationStep == 3 &&
+                              alert.id == _presentationAlertId
+                          ? _presentationPrimaryTargetKey
+                          : null,
                   onAction: (_) => _openAlert(alert.id),
                 ),
                 const SizedBox(height: 10),
@@ -927,13 +1043,23 @@ class _OperationsShellState extends State<OperationsShell> {
           ),
         ],
       ),
-    ]);
+    ], controller: _presentationAlertsScrollController);
   }
 
   void _openAlert(String id) {
+    final isPresentationAlert =
+        _presentationActive && _presentationStep == 3;
     Navigator.of(context).push<void>(
       MaterialPageRoute(
-        builder: (context) => AlertDetails(store: _demo, id: id),
+        builder: (context) => AlertDetails(
+          store: _demo,
+          id: id,
+          scrollController: _presentationDetailsScrollController,
+          presentationAcknowledgeKey:
+              isPresentationAlert ? _presentationSecondaryTargetKey : null,
+          presentationBackKey:
+              isPresentationAlert ? _presentationTertiaryTargetKey : null,
+        ),
       ),
     );
   }
@@ -1026,6 +1152,510 @@ class _OperationsShellState extends State<OperationsShell> {
         _morePage = null;
       });
     }, '${scenario.label} loaded and saved on this device.');
+  }
+
+  Future<void> _startPresentation() async {
+    final scenario = _scenarioChoice;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Start ${scenario.label}?'),
+        content: const Text(
+          'Starting replaces the saved demo trips, alerts, and visit events on this device with this fixed sample scenario. This cannot be undone. No production data is affected.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            key: const ValueKey('confirm-start-presentation'),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Start presentation'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    _presentationTimer?.cancel();
+    var started = false;
+    await _saveDemo(() async {
+      await _demo.loadScenario(scenario);
+      if (!mounted) return;
+      setState(() {
+        _presentationTouchGeneration++;
+        _demoRole = _presentationRole;
+        _selectedTripStatus = 'All statuses';
+        _alertSection = 'Needs action';
+        _situationKind = 'All kinds';
+        _historyOutcome = 'All closed situations';
+        _intelligenceDays = 30;
+        _presentationStep = 0;
+        _completedPresentationActions.clear();
+        _presentationActionInProgress = false;
+        _presentationSecondsRemaining =
+            DemoPresentationStep.stepDuration(_presentationLength).inSeconds;
+        _presentationActive =
+            _presentationMode != DemoPresentationMode.explore;
+        _presentationPlaying =
+            _presentationMode == DemoPresentationMode.autoplay;
+        _tab = _presentationMode == DemoPresentationMode.explore ? 0 : 4;
+        _morePage = _presentationMode == DemoPresentationMode.explore
+            ? null
+            : 'Presentation';
+      });
+      started = true;
+      if (_presentationPlaying) _armPresentationTimer();
+    }, '${scenario.label} presentation started with locally saved sample data.');
+    if (started && _presentationMode != DemoPresentationMode.explore) {
+      _schedulePresentationActions(0);
+    }
+  }
+
+  void _armPresentationTimer() {
+    _presentationTimer?.cancel();
+    if (!_presentationActive ||
+        !_presentationPlaying ||
+        _presentationMode != DemoPresentationMode.autoplay) {
+      return;
+    }
+    _presentationTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted || !_presentationActive || !_presentationPlaying) {
+        timer.cancel();
+        return;
+      }
+      if (_presentationSecondsRemaining > 1) {
+        setState(() => _presentationSecondsRemaining--);
+        return;
+      }
+      timer.cancel();
+      if (_presentationStep >= DemoPresentationStep.sequence.length - 1) {
+        setState(() {
+          _presentationSecondsRemaining = 0;
+          _presentationPlaying = false;
+        });
+        return;
+      }
+      unawaited(_completePresentationStep());
+    });
+  }
+
+  Future<void> _completePresentationStep() async {
+    if (_presentationActionInProgress || !_presentationActive) return;
+    final completedStep = _presentationStep;
+    if (completedStep >= DemoPresentationStep.sequence.length - 1) return;
+    _presentationTimer?.cancel();
+    if (!_completedPresentationActions.contains(completedStep)) {
+      await _demonstratePresentationStep(completedStep);
+      if (!mounted ||
+          !_presentationActive ||
+          !_completedPresentationActions.contains(completedStep)) {
+        return;
+      }
+    }
+    setState(() {
+      _presentationStep++;
+      _presentationSecondsRemaining =
+          DemoPresentationStep.stepDuration(_presentationLength).inSeconds;
+    });
+    if (_presentationPlaying) _armPresentationTimer();
+    _schedulePresentationActions(_presentationStep);
+  }
+
+  void _schedulePresentationActions(int step) {
+    final generation = _presentationTouchGeneration;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          !_presentationActive ||
+          _presentationMode == DemoPresentationMode.explore ||
+          generation != _presentationTouchGeneration ||
+          step != _presentationStep) {
+        return;
+      }
+      unawaited(_demonstratePresentationStep(step));
+    });
+  }
+
+  Future<void> _performPresentationTap(
+    GlobalKey target,
+    String label,
+    int generation, {
+    ScrollController? scrollController,
+  }) async {
+    bool canContinue() =>
+        mounted &&
+        _presentationActive &&
+        generation == _presentationTouchGeneration;
+    if (!canContinue()) return;
+    await DemoTouchPointer.tap(
+      context,
+      target,
+      label: label,
+      scrollController: scrollController,
+      shouldContinue: canContinue,
+    );
+    if (!canContinue()) return;
+  }
+
+  Future<void> _waitForDemoSave(int generation) async {
+    while (_demo.saving &&
+        mounted &&
+        _presentationActive &&
+        generation == _presentationTouchGeneration) {
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+    }
+  }
+
+  Future<void> _demonstratePresentationStep(int step) async {
+    if (!_presentationActive ||
+        _presentationMode == DemoPresentationMode.explore ||
+        _presentationActionInProgress ||
+        _completedPresentationActions.contains(step)) {
+      return;
+    }
+    final generation = _presentationTouchGeneration;
+    setState(() => _presentationActionInProgress = true);
+    try {
+      switch (step) {
+        case 0:
+          final trip = _presentationTrip;
+          if (trip == null || !trip.canAdvance) {
+            throw StateError(
+                'The selected demo scenario has no active trip to advance.');
+          }
+          await _performPresentationTap(
+              _presentationPrimaryTargetKey, 'Open trip', generation,
+              scrollController: _presentationHomeScrollController);
+          await _performPresentationTap(
+              _presentationSecondaryTargetKey, 'Advance stage', generation,
+              scrollController: _presentationDetailsScrollController);
+          await _waitForDemoSave(generation);
+          if (generation == _presentationTouchGeneration &&
+              _demo.trips
+                      .firstWhere((item) => item.code == trip.code)
+                      .status ==
+                  trip.status) {
+            throw StateError('The simulated trip stage did not change.');
+          }
+          await _performPresentationTap(
+              _presentationTertiaryTargetKey, 'Back to overview', generation);
+        case 1:
+          await _performPresentationTap(
+              _presentationPrimaryTargetKey, 'Inspect trip', generation,
+              scrollController: _presentationTripsScrollController);
+          await _performPresentationTap(
+              _presentationSecondaryTargetKey, 'Back to trips', generation);
+        case 2:
+          await _performPresentationTap(
+              _presentationPrimaryTargetKey, 'Open vehicle', generation,
+              scrollController: _presentationMapScrollController);
+          await _performPresentationTap(
+              _presentationSecondaryTargetKey, 'Open assigned trip', generation,
+              scrollController: _presentationVehicleSheetScrollController);
+          await _performPresentationTap(
+              _presentationFourthTargetKey, 'Back to map', generation);
+        case 3:
+          final alert = _demo.alertById(_presentationAlertId);
+          await _performPresentationTap(
+              _presentationPrimaryTargetKey, 'Review alert', generation,
+              scrollController: _presentationAlertsScrollController);
+          if (_presentationRole != _DemoRole.driver &&
+              alert.isOpen &&
+              !alert.acknowledged) {
+            await _performPresentationTap(
+                _presentationSecondaryTargetKey, 'Acknowledge', generation,
+                scrollController: _presentationDetailsScrollController);
+            await _waitForDemoSave(generation);
+            if (generation == _presentationTouchGeneration &&
+                !_demo.alertById(alert.id).acknowledged) {
+              throw StateError('The demo alert was not acknowledged.');
+            }
+          }
+          await _performPresentationTap(
+              _presentationTertiaryTargetKey, 'Back to alerts', generation);
+        case 4:
+          await _performPresentationTap(_presentationPrimaryTargetKey,
+              'Open customer visits report', generation,
+              scrollController: _presentationReportsScrollController);
+      }
+      if (mounted &&
+          _presentationActive &&
+          generation == _presentationTouchGeneration) {
+        _completedPresentationActions.add(step);
+      }
+    } on StateError catch (error) {
+      _showPresentationActionError(error);
+    } on Exception catch (error) {
+      _showPresentationActionError(error);
+    } finally {
+      if (mounted && generation == _presentationTouchGeneration) {
+        setState(() => _presentationActionInProgress = false);
+      }
+    }
+  }
+
+  void _showPresentationActionError(Object error) {
+    if (!mounted) return;
+    setState(() => _presentationPlaying = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        duration: const Duration(seconds: 10),
+        content: Text(
+          'Demo Director could not perform this simulated interaction: $error. No step was skipped; retry or stop the presentation.',
+        ),
+      ),
+    );
+  }
+
+  void _setPresentationPlaying(bool playing) {
+    if (!_presentationActive ||
+        _presentationMode != DemoPresentationMode.autoplay) {
+      return;
+    }
+    _presentationTimer?.cancel();
+    setState(() => _presentationPlaying = playing);
+    if (playing) _armPresentationTimer();
+  }
+
+  void _jumpPresentationTo(int index) {
+    if (index < 0 || index >= DemoPresentationStep.sequence.length) return;
+    _presentationTimer?.cancel();
+    _presentationTouchGeneration++;
+    setState(() {
+      _presentationActionInProgress = false;
+      _presentationStep = index;
+      _presentationSecondsRemaining =
+          DemoPresentationStep.stepDuration(_presentationLength).inSeconds;
+      if (_presentationMode == DemoPresentationMode.autoplay &&
+          index == DemoPresentationStep.sequence.length - 1) {
+        _presentationPlaying = false;
+      }
+    });
+    if (_presentationPlaying) _armPresentationTimer();
+    _schedulePresentationActions(index);
+  }
+
+  void _stopPresentation() {
+    _presentationTimer?.cancel();
+    _presentationTouchGeneration++;
+    setState(() {
+      _presentationActive = false;
+      _presentationPlaying = false;
+      _presentationActionInProgress = false;
+      _tab = 0;
+      _morePage = null;
+    });
+  }
+
+  String _presentationTimeLabel() {
+    final minutes = _presentationSecondsRemaining ~/ 60;
+    final seconds = _presentationSecondsRemaining % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+  }
+
+  Widget _presentationScreenContent() {
+    final screen = DemoPresentationStep.sequence[_presentationStep].screen;
+    return switch (screen) {
+      'Home' => _homePage(),
+      'Trips' => _tripsPage(),
+      'Map' => _mapPage(),
+      'Alerts' => _alertsPage(),
+      'Reports' => ReportsPage(
+          onBack: () {
+            if (_presentationStep > 0) {
+              _jumpPresentationTo(_presentationStep - 1);
+            } else {
+              _stopPresentation();
+            }
+          },
+          trips: _demo.trips,
+          alerts: _demo.alerts,
+          visits: _demo.visits,
+          presentationCustomerVisitsKey:
+              _presentationActive && _presentationStep == 4
+                  ? _presentationPrimaryTargetKey
+                  : null,
+          scrollController: _presentationReportsScrollController,
+        ),
+      _ => throw StateError('Unknown presentation screen: $screen'),
+    };
+  }
+
+  Widget _presentationPage() {
+    final step = DemoPresentationStep.sequence[_presentationStep];
+    final lastStep = _presentationStep == DemoPresentationStep.sequence.length - 1;
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+          child: PanelCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.present_to_all_rounded,
+                        color: _blue, size: 19),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '${_presentationMode.label} · ${_presentationRole.name} · ${_presentationRole.label}',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                    IconButton(
+                      key: const ValueKey('stop-presentation'),
+                      tooltip: 'Stop presentation',
+                      onPressed: _stopPresentation,
+                      icon: const Icon(Icons.close_rounded),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ],
+                ),
+                LinearProgressIndicator(
+                  value: (_presentationStep + 1) /
+                      DemoPresentationStep.sequence.length,
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'STEP ${_presentationStep + 1} OF ${DemoPresentationStep.sequence.length} · ${step.screen.toUpperCase()}',
+                        style: const TextStyle(
+                          color: _muted,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.6,
+                        ),
+                      ),
+                    ),
+                    if (_presentationMode == DemoPresentationMode.autoplay)
+                      Text(
+                        _presentationTimeLabel(),
+                        key: const ValueKey('presentation-countdown'),
+                        style: const TextStyle(
+                          color: _blue,
+                          fontWeight: FontWeight.w700,
+                          fontFeatures: [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  step.title,
+                  style: const TextStyle(
+                      fontSize: 17, fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _presentationNarration(step),
+                  style: const TextStyle(
+                      color: _muted, fontSize: 12, height: 1.4),
+                ),
+                if (_presentationActionInProgress) ...[
+                  const SizedBox(height: 8),
+                  const Row(
+                    children: [
+                      SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Demonstrating with simulated touches…',
+                          key: ValueKey('presentation-action-progress'),
+                          style: TextStyle(
+                              color: _blue,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ],
+                  ),
+                ] else if (_completedPresentationActions
+                    .contains(_presentationStep)) ...[
+                  const SizedBox(height: 8),
+                  const Row(
+                    children: [
+                      Icon(Icons.check_circle_outline,
+                          size: 15, color: _green),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Demonstration complete · changes saved locally',
+                          key: ValueKey('presentation-action-complete'),
+                          style: TextStyle(
+                              color: _green,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    IconButton(
+                      key: const ValueKey('presentation-previous'),
+                      tooltip: 'Previous step',
+                      onPressed: _presentationStep > 0
+                          ? () => _jumpPresentationTo(_presentationStep - 1)
+                          : null,
+                      icon: const Icon(Icons.skip_previous_rounded),
+                    ),
+                    if (_presentationMode == DemoPresentationMode.autoplay)
+                      IconButton.filled(
+                        key: ValueKey(
+                            _presentationPlaying ? 'presentation-pause' : 'presentation-resume'),
+                        tooltip: _presentationPlaying ? 'Pause' : 'Resume',
+                        onPressed: () =>
+                            _setPresentationPlaying(!_presentationPlaying),
+                        icon: Icon(_presentationPlaying
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded),
+                      )
+                    else
+                      const Icon(Icons.touch_app_outlined,
+                          size: 20, color: _muted),
+                    const Spacer(),
+                    if (_presentationMode == DemoPresentationMode.autoplay &&
+                        lastStep)
+                      TextButton.icon(
+                        key: const ValueKey('replay-presentation'),
+                        onPressed: _startPresentation,
+                        icon: const Icon(Icons.replay_rounded),
+                        label: const Text('Replay'),
+                      )
+                    else if (_presentationMode == DemoPresentationMode.guided &&
+                        lastStep)
+                      FilledButton(
+                        key: const ValueKey('finish-presentation'),
+                        onPressed: _stopPresentation,
+                        child: const Text('Finish'),
+                      )
+                    else
+                      FilledButton.icon(
+                        key: const ValueKey('presentation-next'),
+                        onPressed: _presentationActionInProgress
+                            ? null
+                            : _completePresentationStep,
+                        icon: const Icon(Icons.skip_next_rounded),
+                        label: const Text('Next step'),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        Expanded(child: _presentationScreenContent()),
+      ],
+    );
   }
 
   void _openWalkthroughScreen(String screen) {
@@ -1308,6 +1938,100 @@ class _OperationsShellState extends State<OperationsShell> {
       ),
       _pageHeading('Stakeholder walkthrough', 'A guided, simulated demo'),
       const DemoNotice(),
+      const SizedBox(height: 16),
+      PanelCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SectionHeading(title: 'Demo Director'),
+            const SizedBox(height: 8),
+            const Text(
+              'Choose how to present the sample operation. Starting replaces saved demo records only after confirmation.',
+              style: TextStyle(color: _muted, fontSize: 12, height: 1.5),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<DemoPresentationMode>(
+              key: ValueKey('presentation-mode-${_presentationMode.name}'),
+              initialValue: _presentationMode,
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Presentation mode'),
+              items: [
+                for (final mode in DemoPresentationMode.values)
+                  DropdownMenuItem(
+                    value: mode,
+                    child: Text(mode.label),
+                  ),
+              ],
+              onChanged: (mode) {
+                if (mode != null) {
+                  setState(() => _presentationMode = mode);
+                }
+              },
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _presentationMode.description,
+              key: const ValueKey('presentation-mode-description'),
+              style: const TextStyle(color: _muted, fontSize: 12),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<_DemoRole>(
+              key: const ValueKey('presentation-role-switcher'),
+              initialValue: _presentationRole,
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Personnel perspective'),
+              items: [
+                for (final role in _DemoRole.values)
+                  DropdownMenuItem(
+                    value: role,
+                    child: Text(role.label),
+                  ),
+              ],
+              onChanged: (role) {
+                if (role != null) {
+                  setState(() => _presentationRole = role);
+                }
+              },
+            ),
+            if (_presentationMode == DemoPresentationMode.autoplay) ...[
+              const SizedBox(height: 12),
+              DropdownButtonFormField<int>(
+                key: ValueKey('presentation-length-$_presentationLength'),
+                initialValue: _presentationLength,
+                isExpanded: true,
+                decoration:
+                    const InputDecoration(labelText: 'Presentation length'),
+                items: [
+                  for (final minutes
+                      in DemoPresentationStep.presentationLengths)
+                    DropdownMenuItem(
+                      value: minutes,
+                      child: Text('$minutes minutes'),
+                    ),
+                ],
+                onChanged: (minutes) {
+                  if (minutes != null) {
+                    setState(() => _presentationLength = minutes);
+                  }
+                },
+              ),
+            ],
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              key: const ValueKey('start-presentation'),
+              onPressed: _demo.saving ? null : _startPresentation,
+              icon: Icon(_presentationMode == DemoPresentationMode.explore
+                  ? Icons.explore_outlined
+                  : Icons.play_arrow_rounded),
+              label: Text(
+                _presentationMode == DemoPresentationMode.explore
+                    ? 'Explore ${_scenarioChoice.label}'
+                    : 'Start ${_presentationMode.label.toLowerCase()}',
+              ),
+            ),
+          ],
+        ),
+      ),
       const SizedBox(height: 16),
       _guidedScenarios(),
     ]);
@@ -1914,9 +2638,26 @@ class _OperationsShellState extends State<OperationsShell> {
   }
 
   void _openTrip(String code) {
+    final isPresentationTrip =
+        _presentationActive && (_presentationStep == 0 || _presentationStep == 1);
     Navigator.of(context).push<void>(
       MaterialPageRoute(
-        builder: (context) => TripDetails(store: _demo, code: code),
+        builder: (context) => TripDetails(
+          store: _demo,
+          code: code,
+          presentationAdvanceKey: isPresentationTrip &&
+                  _presentationStep == 0
+              ? _presentationSecondaryTargetKey
+              : null,
+          presentationBackKey: isPresentationTrip
+              ? _presentationStep == 0
+                  ? _presentationTertiaryTargetKey
+                  : _presentationSecondaryTargetKey
+              : null,
+          scrollController: isPresentationTrip
+              ? _presentationDetailsScrollController
+              : null,
+        ),
       ),
     );
   }
@@ -2104,6 +2845,7 @@ class AlertCard extends StatelessWidget {
     this.onAction,
     this.reference,
     this.onTap,
+    this.presentationManageKey,
   });
 
   final String title;
@@ -2114,6 +2856,7 @@ class AlertCard extends StatelessWidget {
   final ValueChanged<String>? onAction;
   final String? reference;
   final VoidCallback? onTap;
+  final GlobalKey? presentationManageKey;
 
   @override
   Widget build(BuildContext context) {
@@ -2170,10 +2913,13 @@ class AlertCard extends StatelessWidget {
                     style: const TextStyle(
                         color: _muted, fontSize: 12, height: 1.6)),
                 const SizedBox(height: 20),
-                FilledButton(
-                  onPressed: () => onAction?.call(
-                      severity == 'Warning' ? 'Reset Link' : 'Verify Tonnage'),
-                  child: const Text('Manage demo alert'),
+                KeyedSubtree(
+                  key: presentationManageKey,
+                  child: FilledButton(
+                    onPressed: () => onAction?.call(
+                        severity == 'Warning' ? 'Reset Link' : 'Verify Tonnage'),
+                    child: const Text('Manage demo alert'),
+                  ),
                 ),
                 if (severity != 'Warning')
                   TextButton(
