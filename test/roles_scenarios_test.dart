@@ -196,6 +196,26 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('Home opens the stakeholder walkthrough landing page',
+      (tester) async {
+    final store = DemoStore.memory();
+    addTearDown(store.dispose);
+    await tester.pumpWidget(DumptrakPrototypeApp(store: store));
+
+    final launch = find.byKey(const ValueKey('open-stakeholder-walkthrough'));
+    await reveal(tester, launch);
+    await tester.tap(launch);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Stakeholder walkthrough'), findsOneWidget);
+    expect(find.text('A guided, simulated demo'), findsOneWidget);
+    expect(find.byKey(const ValueKey('guided-scenario-normal')), findsOneWidget);
+    expect(find.byKey(const ValueKey('load-guided-scenario')), findsOneWidget);
+    expect(find.byKey(const ValueKey('walkthrough-step-0')), findsOneWidget);
+    expect(store.scenario, DemoScenario.normal);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('walkthrough shortcuts navigate directly to selected screens',
       (tester) async {
     final store = DemoStore.memory();

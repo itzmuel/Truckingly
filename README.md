@@ -62,6 +62,9 @@ for confirmation and replaces the local demo snapshot with the selected fixed
 scenario. Cancel keeps all current records. Reset Demo always restores the
 original samples.
 
+The Home screen also has a **Stakeholder walkthrough** shortcut to open the
+scenario selector and walkthrough steps directly.
+
 The delay scenario uses a sample status label and an alert, not an actual
 calculated delay or arrival time. The incident scenario marks a sample trip as
 Exception and adds an explicitly simulated vehicle alert; it does not report a

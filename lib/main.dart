@@ -516,6 +516,41 @@ class _OperationsShellState extends State<OperationsShell> {
           ),
         ],
       ),
+      const SizedBox(height: 16),
+      PanelCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.present_to_all_rounded, color: _blue),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Stakeholder walkthrough',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Start a guided ${_demo.scenario.label.toLowerCase()} demo.',
+              style: const TextStyle(color: _muted, fontSize: 12),
+            ),
+            const SizedBox(height: 10),
+            FilledButton.icon(
+              key: const ValueKey('open-stakeholder-walkthrough'),
+              onPressed: () => setState(() {
+                _tab = 4;
+                _morePage = 'Walkthrough';
+              }),
+              icon: const Icon(Icons.play_arrow_rounded),
+              label: const Text('Choose a walkthrough'),
+            ),
+          ],
+        ),
+      ),
       const SizedBox(height: 24),
       SectionHeading(
         title: 'Needs your attention',
@@ -1157,6 +1192,42 @@ class _OperationsShellState extends State<OperationsShell> {
             ],
           const SizedBox(height: 8),
           const Divider(height: 28),
+          _guidedScenarios(),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            key: const ValueKey('reset-demo'),
+            onPressed: _demo.saving
+                ? null
+                : () async {
+                    if (!await _confirmDemoReset(context) || !mounted) return;
+                    await _saveDemo(() async {
+                      await _demo.reset();
+                      if (!mounted) return;
+                      setState(() {
+                        _selectedTripStatus = 'All statuses';
+                        _scenarioChoice = DemoScenario.normal;
+                        _tab = 4;
+                        _morePage = null;
+                        _alertSection = 'Needs action';
+                        _situationKind = 'All kinds';
+                        _historyOutcome = 'All closed situations';
+                        _intelligenceDays = 30;
+                      });
+                    }, 'Original demo data restored and saved.');
+                  },
+            icon: const Icon(Icons.restart_alt_rounded),
+            label: const Text('Reset Demo'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _guidedScenarios() {
+    return PanelCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
           const SectionHeading(title: 'Guided scenarios'),
           const SizedBox(height: 8),
           const Text(
@@ -1217,34 +1288,29 @@ class _OperationsShellState extends State<OperationsShell> {
                 child: const Text('Open'),
               ),
             ),
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            key: const ValueKey('reset-demo'),
-            onPressed: _demo.saving
-                ? null
-                : () async {
-                    if (!await _confirmDemoReset(context) || !mounted) return;
-                    await _saveDemo(() async {
-                      await _demo.reset();
-                      if (!mounted) return;
-                      setState(() {
-                        _selectedTripStatus = 'All statuses';
-                        _scenarioChoice = DemoScenario.normal;
-                        _tab = 4;
-                        _morePage = null;
-                        _alertSection = 'Needs action';
-                        _situationKind = 'All kinds';
-                        _historyOutcome = 'All closed situations';
-                        _intelligenceDays = 30;
-                      });
-                    }, 'Original demo data restored and saved.');
-                  },
-            icon: const Icon(Icons.restart_alt_rounded),
-            label: const Text('Reset Demo'),
-          ),
         ],
       ),
     );
+  }
+
+  Widget _walkthroughPage() {
+    return _pageScroll([
+      Align(
+        alignment: Alignment.centerLeft,
+        child: TextButton.icon(
+          onPressed: () => setState(() {
+            _tab = 0;
+            _morePage = null;
+          }),
+          icon: const Icon(Icons.arrow_back_rounded),
+          label: const Text('Home'),
+        ),
+      ),
+      _pageHeading('Stakeholder walkthrough', 'A guided, simulated demo'),
+      const DemoNotice(),
+      const SizedBox(height: 16),
+      _guidedScenarios(),
+    ]);
   }
 
   Widget _alertFilter({
@@ -1389,6 +1455,7 @@ class _OperationsShellState extends State<OperationsShell> {
 
   Widget _moreDetailPage() {
     final title = _morePage!;
+    if (title == 'Walkthrough') return _walkthroughPage();
     if (title == 'Reports') {
       return ReportsPage(
         onBack: () => setState(() => _morePage = null),
