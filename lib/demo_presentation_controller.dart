@@ -8,16 +8,24 @@ import 'demo_director.dart';
 typedef DemoPresentationStepRunner = Future<void> Function(int step);
 
 class DemoPresentationController extends ChangeNotifier {
+  static const minimumStepDuration = Duration(seconds: 8);
+
   DemoPresentationMode _mode = DemoPresentationMode.guided;
   int _stepIndex = 0;
   int _stepCount = 0;
+  int _furthestStepIndex = 0;
   int _secondsRemaining = 0;
   int _generation = 0;
   bool _active = false;
   bool _playing = false;
   bool _actionInProgress = false;
-  Duration _stepDuration = Duration.zero;
+  bool _observational = false;
+  Object? _actionError;
+  StackTrace? _actionErrorStackTrace;
+  int? _failedStep;
+  List<Duration> _stepDurations = const [];
   final Set<int> _completedActions = {};
+  final Set<int> _skippedActions = {};
   Timer? _timer;
   DemoPresentationStepRunner? _runStep;
 
@@ -29,9 +37,14 @@ class DemoPresentationController extends ChangeNotifier {
   bool get active => _active;
   bool get playing => _playing;
   bool get actionInProgress => _actionInProgress;
+  bool get observational => _observational;
+  Object? get actionError => _actionError;
+  StackTrace? get actionErrorStackTrace => _actionErrorStackTrace;
   Set<int> get completedActions => Set.unmodifiable(_completedActions);
+  Set<int> get skippedActions => Set.unmodifiable(_skippedActions);
 
-  Duration get stepDuration => _stepDuration;
+  Duration get stepDuration =>
+      _stepDurations.isEmpty ? Duration.zero : _stepDurations[_stepIndex];
 
   String get timeLabel {
     final minutes = _secondsRemaining ~/ 60;
@@ -39,26 +52,75 @@ class DemoPresentationController extends ChangeNotifier {
     return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
   }
 
+  static List<Duration> allocateStepDurations({
+    required Duration totalDuration,
+    required List<int> weights,
+    Duration minimumDuration = minimumStepDuration,
+  }) {
+    if (weights.isEmpty || weights.any((weight) => weight <= 0)) {
+      throw ArgumentError.value(weights, 'weights', 'Must be positive.');
+    }
+    final totalSeconds = totalDuration.inSeconds;
+    final minimumSeconds = minimumDuration.inSeconds;
+    if (minimumSeconds < 0 || totalSeconds < minimumSeconds * weights.length) {
+      throw ArgumentError(
+        'The total duration must provide at least $minimumSeconds seconds '
+        'for each of ${weights.length} steps.',
+      );
+    }
+    final remainingSeconds = totalSeconds - minimumSeconds * weights.length;
+    final totalWeight = weights.fold<int>(0, (total, weight) => total + weight);
+    var allocatedSeconds = 0;
+    return List<Duration>.generate(weights.length, (index) {
+      final extraSeconds = index == weights.length - 1
+          ? remainingSeconds - allocatedSeconds
+          : remainingSeconds * weights[index] ~/ totalWeight;
+      allocatedSeconds += extraSeconds;
+      return Duration(seconds: minimumSeconds + extraSeconds);
+    }, growable: false);
+  }
+
   void start({
     required DemoPresentationMode mode,
     required int lengthMinutes,
     required int stepCount,
     required DemoPresentationStepRunner runStep,
+    List<int>? stepWeights,
   }) {
     if (stepCount <= 0) {
       throw ArgumentError.value(stepCount, 'stepCount', 'Must be positive.');
+    }
+    if (lengthMinutes <= 0) {
+      throw ArgumentError.value(lengthMinutes, 'lengthMinutes', 'Must be positive.');
+    }
+    final weights = stepWeights ?? List<int>.filled(stepCount, 1);
+    if (weights.length != stepCount) {
+      throw ArgumentError.value(
+        weights,
+        'stepWeights',
+        'Must have one weight per step.',
+      );
     }
     _timer?.cancel();
     _generation++;
     _mode = mode;
     _stepIndex = 0;
     _stepCount = stepCount;
-    _stepDuration = Duration(seconds: lengthMinutes * 60 ~/ stepCount);
-    _secondsRemaining = _stepDuration.inSeconds;
+    _furthestStepIndex = 0;
+    _stepDurations = allocateStepDurations(
+      totalDuration: Duration(minutes: lengthMinutes),
+      weights: weights,
+    );
+    _secondsRemaining = _stepDurations.first.inSeconds;
     _active = mode != DemoPresentationMode.explore;
     _playing = mode == DemoPresentationMode.autoplay;
     _actionInProgress = false;
+    _observational = false;
+    _actionError = null;
+    _actionErrorStackTrace = null;
+    _failedStep = null;
     _completedActions.clear();
+    _skippedActions.clear();
     _runStep = runStep;
     notifyListeners();
     if (_playing) _armTimer();
@@ -66,23 +128,27 @@ class DemoPresentationController extends ChangeNotifier {
   }
 
   Future<void> advance() async {
-    if (_actionInProgress || !_active) return;
+    if (_actionInProgress || !_active || _actionError != null) return;
     final completedStep = _stepIndex;
     if (completedStep >= _stepCount - 1) return;
     _timer?.cancel();
-    if (!_completedActions.contains(completedStep)) {
+    if (!_observational && !_completedActions.contains(completedStep)) {
       await _runAction(completedStep);
-      if (!_active || !_completedActions.contains(completedStep)) return;
+      if (!_active ||
+          _actionError != null ||
+          !_completedActions.contains(completedStep)) {
+        return;
+      }
     }
-    _stepIndex++;
-    _secondsRemaining = _stepDuration.inSeconds;
-    notifyListeners();
-    if (_playing) _armTimer();
-    scheduleCurrentStep();
+    _moveToStep(completedStep + 1);
   }
 
   void setPlaying(bool playing) {
-    if (!_active || _mode != DemoPresentationMode.autoplay) return;
+    if (!_active ||
+        _mode != DemoPresentationMode.autoplay ||
+        _actionError != null) {
+      return;
+    }
     _timer?.cancel();
     _playing = playing;
     notifyListeners();
@@ -90,12 +156,19 @@ class DemoPresentationController extends ChangeNotifier {
   }
 
   void jumpTo(int index) {
-    if (index < 0 || index >= _stepCount) return;
+    if (index < 0 ||
+        index >= _stepCount ||
+        index == _stepIndex ||
+        _actionError != null) {
+      return;
+    }
     _timer?.cancel();
     _generation++;
     _actionInProgress = false;
     _stepIndex = index;
-    _secondsRemaining = _stepDuration.inSeconds;
+    _furthestStepIndex = index > _furthestStepIndex ? index : _furthestStepIndex;
+    _observational = index < _furthestStepIndex;
+    _secondsRemaining = _stepDurations[index].inSeconds;
     if (_mode == DemoPresentationMode.autoplay && index == _stepCount - 1) {
       _playing = false;
     }
@@ -104,12 +177,35 @@ class DemoPresentationController extends ChangeNotifier {
     scheduleCurrentStep();
   }
 
+  Future<void> retryFailedAction() async {
+    final step = _failedStep;
+    if (!_active || step == null || step != _stepIndex) return;
+    _clearActionError();
+    await _runAction(step);
+  }
+
+  void skipFailedAction() {
+    final step = _failedStep;
+    if (!_active || step == null || step != _stepIndex) return;
+    _skippedActions.add(step);
+    _clearActionError();
+    if (step < _stepCount - 1) {
+      _furthestStepIndex = step + 1 > _furthestStepIndex
+          ? step + 1
+          : _furthestStepIndex;
+      _moveToStep(step + 1);
+    } else {
+      notifyListeners();
+    }
+  }
+
   void stop() {
     _timer?.cancel();
     _generation++;
     _active = false;
     _playing = false;
     _actionInProgress = false;
+    _clearActionError(notify: false);
     notifyListeners();
   }
 
@@ -123,11 +219,30 @@ class DemoPresentationController extends ChangeNotifier {
 
   void scheduleCurrentStep() => _scheduleStep(_stepIndex);
 
+  void _moveToStep(int index) {
+    _stepIndex = index;
+    _furthestStepIndex = index > _furthestStepIndex ? index : _furthestStepIndex;
+    _observational = index < _furthestStepIndex;
+    _secondsRemaining = _stepDurations[index].inSeconds;
+    notifyListeners();
+    if (_playing) _armTimer();
+    scheduleCurrentStep();
+  }
+
+  void _clearActionError({bool notify = true}) {
+    _actionError = null;
+    _actionErrorStackTrace = null;
+    _failedStep = null;
+    if (notify) notifyListeners();
+  }
+
   Future<void> _runAction(int step) async {
     final runner = _runStep;
     if (!_active ||
         _mode == DemoPresentationMode.explore ||
+        _observational ||
         _actionInProgress ||
+        _actionError != null ||
         _completedActions.contains(step) ||
         runner == null) {
       return;
@@ -137,6 +252,14 @@ class DemoPresentationController extends ChangeNotifier {
     notifyListeners();
     try {
       await runner(step);
+    } catch (error, stackTrace) {
+      if (canContinue(generation)) {
+        _timer?.cancel();
+        _playing = false;
+        _actionError = error;
+        _actionErrorStackTrace = stackTrace;
+        _failedStep = step;
+      }
     } finally {
       if (canContinue(generation)) {
         _actionInProgress = false;
@@ -151,6 +274,8 @@ class DemoPresentationController extends ChangeNotifier {
     SchedulerBinding.instance.addPostFrameCallback((_) {
       if (!canContinue(generation) ||
           _mode == DemoPresentationMode.explore ||
+          _observational ||
+          _actionError != null ||
           step != _stepIndex) {
         return;
       }

@@ -18,6 +18,81 @@ extension _DemoPresentationView on _OperationsShellState {
     return '$focus ${step.description} Perspective is a demo lens, not access control.';
   }
 
+  Widget _presentationRoleHandoff(DemoPathStep step) {
+    final playback = _presentation.playback;
+    if (playback.stepIndex == 0) return const SizedBox.shrink();
+    final previous = _presentation.steps[playback.stepIndex - 1];
+    if (previous.role == step.role) return const SizedBox.shrink();
+    return Container(
+      key: const ValueKey('presentation-role-transition'),
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0C2233),
+        border: Border.all(color: _blue.withValues(alpha: 0.5)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.swap_horiz_rounded, color: _blue, size: 17),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Role handoff · ${previous.role.label} → ${step.role.label}',
+              style: const TextStyle(
+                color: _blue,
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _presentationSummary() {
+    final playback = _presentation.playback;
+    final completed = playback.completedActions;
+    final handledAlerts = completed.where((index) {
+      final action = _presentation.steps[index].action;
+      return action == 'acknowledge-alert' || action == 'resolve-alert';
+    }).length;
+    final reviewedReports = completed.where((index) {
+      final action = _presentation.steps[index].action;
+      return action == 'inspect-reports' ||
+          action == 'inspect-visits' ||
+          action == 'inspect-visits-report';
+    }).length;
+    return Container(
+      key: const ValueKey('presentation-journey-summary'),
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF10251D),
+        border: Border.all(color: _green.withValues(alpha: 0.45)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'Journey complete',
+            style: TextStyle(fontWeight: FontWeight.w800, color: _green),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${completed.length} of ${_presentation.steps.length} steps completed'
+            ' · ${playback.skippedActions.length} skipped'
+            ' · $handledAlerts alert${handledAlerts == 1 ? '' : 's'} handled'
+            ' · $reviewedReports report${reviewedReports == 1 ? '' : 's'} reviewed',
+            style: const TextStyle(color: _muted, fontSize: 11),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _presentationScreenContent() {
     final screen = _presentationCurrentStep.screen;
     final content = switch (screen) {
@@ -61,6 +136,11 @@ extension _DemoPresentationView on _OperationsShellState {
   Widget _presentationPage() {
     final step = _presentation.steps[_presentationStep];
     final lastStep = _presentationStep == _presentation.steps.length - 1;
+    final playback = _presentation.playback;
+    final hasPresentationError = playback.actionError != null;
+    final journeyFinished = lastStep &&
+        (playback.completedActions.contains(_presentationStep) ||
+            playback.skippedActions.contains(_presentationStep));
     return Column(
       children: [
         Padding(
@@ -119,6 +199,7 @@ extension _DemoPresentationView on _OperationsShellState {
                   ],
                 ),
                 const SizedBox(height: 4),
+                _presentationRoleHandoff(step),
                 Text(
                   step.title,
                   style: const TextStyle(
@@ -130,6 +211,75 @@ extension _DemoPresentationView on _OperationsShellState {
                   style:
                       const TextStyle(color: _muted, fontSize: 12, height: 1.4),
                 ),
+                if (playback.observational) ...[
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Reviewing a previous step · simulated actions are paused.',
+                    key: ValueKey('presentation-observational'),
+                    style: TextStyle(
+                      color: _muted,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+                if (hasPresentationError) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    key: const ValueKey('presentation-action-error'),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF321A16),
+                      border: Border.all(color: const Color(0xFFFFA000)),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const Text(
+                          'This action failed. Autoplay is paused. Check for partial local changes before retrying.',
+                          style: TextStyle(
+                            color: Color(0xFFFFA000),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Details: ${playback.actionError}',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: _muted, fontSize: 10),
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          alignment: WrapAlignment.end,
+                          spacing: 8,
+                          runSpacing: 4,
+                          children: [
+                            TextButton(
+                              key: const ValueKey('presentation-action-retry'),
+                              onPressed: () {
+                                playback.retryFailedAction();
+                              },
+                              child: const Text('Retry'),
+                            ),
+                            TextButton(
+                              key: const ValueKey('presentation-action-skip'),
+                              onPressed: playback.skipFailedAction,
+                              child: const Text('Skip'),
+                            ),
+                            TextButton(
+                              key: const ValueKey('presentation-action-stop'),
+                              onPressed: _stopPresentation,
+                              child: const Text('Stop'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 if (_presentationActionInProgress) ...[
                   const SizedBox(height: 8),
                   const Row(
@@ -172,13 +322,14 @@ extension _DemoPresentationView on _OperationsShellState {
                     ],
                   ),
                 ],
+                if (journeyFinished) _presentationSummary(),
                 const SizedBox(height: 8),
                 Row(
                   children: [
                     IconButton(
                       key: const ValueKey('presentation-previous'),
                       tooltip: 'Previous step',
-                      onPressed: _presentationStep > 0
+                      onPressed: _presentationStep > 0 && !hasPresentationError
                           ? () => _jumpPresentationTo(_presentationStep - 1)
                           : null,
                       icon: const Icon(Icons.skip_previous_rounded),
@@ -189,8 +340,9 @@ extension _DemoPresentationView on _OperationsShellState {
                             ? 'presentation-pause'
                             : 'presentation-resume'),
                         tooltip: _presentationPlaying ? 'Pause' : 'Resume',
-                        onPressed: () =>
-                            _setPresentationPlaying(!_presentationPlaying),
+                        onPressed: hasPresentationError
+                            ? null
+                            : () => _setPresentationPlaying(!_presentationPlaying),
                         icon: Icon(_presentationPlaying
                             ? Icons.pause_rounded
                             : Icons.play_arrow_rounded),
@@ -203,7 +355,7 @@ extension _DemoPresentationView on _OperationsShellState {
                         lastStep)
                       TextButton.icon(
                         key: const ValueKey('replay-presentation'),
-                        onPressed: _startPresentation,
+                        onPressed: hasPresentationError ? null : _startPresentation,
                         icon: const Icon(Icons.replay_rounded),
                         label: const Text('Replay'),
                       )
@@ -218,7 +370,8 @@ extension _DemoPresentationView on _OperationsShellState {
                     else
                       FilledButton.icon(
                         key: const ValueKey('presentation-next'),
-                        onPressed: _presentationActionInProgress
+                        onPressed: _presentationActionInProgress ||
+                                hasPresentationError
                             ? null
                             : _completePresentationStep,
                         icon: const Icon(Icons.skip_next_rounded),

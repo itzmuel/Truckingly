@@ -24,7 +24,7 @@ Future<void> tab(WidgetTester tester, String label) async {
 
 Future<void> waitForPresentationActions(WidgetTester tester) async {
   const completeKey = ValueKey('presentation-action-complete');
-  for (var attempt = 0; attempt < 240; attempt++) {
+  for (var attempt = 0; attempt < 600; attempt++) {
     await tester.pump(const Duration(milliseconds: 100));
     if (find.byKey(completeKey).evaluate().isNotEmpty) {
       await tester.pumpAndSettle();
@@ -136,11 +136,31 @@ Future<void> advanceAutoplayStep(
     await tester.pump(const Duration(milliseconds: 100));
     if (find.text(expectedStep).evaluate().isNotEmpty &&
         find.byKey(completeKey).evaluate().isNotEmpty) {
-      await tester.pumpAndSettle();
+      await tester.pump();
       return;
     }
   }
-  fail('Autoplay did not complete $expectedStep.');
+  final actionError = tester
+      .widgetList<Text>(
+        find.descendant(
+          of: find.byKey(const ValueKey('presentation-action-error')),
+          matching: find.byType(Text),
+        ),
+      )
+      .map((text) => text.data)
+      .join(' ');
+  final currentStep = tester
+      .widgetList<Text>(find.byType(Text))
+      .map((text) => text.data)
+      .where((text) => text?.startsWith('STEP ') ?? false)
+      .join();
+  final actionProgress = find.byKey(
+    const ValueKey('presentation-action-progress'),
+  );
+  fail(
+    'Autoplay did not complete $expectedStep. Current: $currentStep. '
+    'Action in progress: ${actionProgress.evaluate().isNotEmpty}. $actionError',
+  );
 }
 
 void main() {
@@ -774,6 +794,49 @@ void main() {
   });
 
   testWidgets(
+      'autoplay requires a feasible minimum duration for long role handoffs',
+      (tester) async {
+    final store = DemoStore.memory();
+    addTearDown(store.dispose);
+    await tester.pumpWidget(DumptrakPrototypeApp(store: store));
+
+    final launch = find.byKey(const ValueKey('open-stakeholder-walkthrough'));
+    await reveal(tester, launch);
+    await tester.tap(launch);
+    await tester.pumpAndSettle();
+
+    final mode = find.byKey(
+      const ValueKey('presentation-mode-guided'),
+    );
+    await reveal(tester, mode);
+    await tester.tap(mode);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Autoplay').last);
+    await tester.pumpAndSettle();
+
+    final length = find.byKey(const ValueKey('presentation-length-5'));
+    await reveal(tester, length);
+    await tester.tap(length);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('3 minutes').last);
+    await tester.pumpAndSettle();
+
+    final role = find.byKey(const ValueKey('presentation-role-switcher'));
+    await reveal(tester, role);
+    await tester.tap(role);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('All Personnel').last);
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('needs at least 5 minutes'), findsOneWidget);
+    final start = tester.widget<FilledButton>(
+      find.byKey(const ValueKey('start-presentation')),
+    );
+    expect(start.onPressed, isNull);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
       'Full Enterprise autoplay hands off one trip across every scenario',
       (tester) async {
     for (final scenario in DemoScenario.values) {
@@ -800,6 +863,14 @@ void main() {
           totalSteps: route.length,
           screen: route[index].screen,
         );
+        if (route[index - 1].role != route[index].role) {
+          expect(
+            find.text(
+              'Role handoff · ${route[index - 1].role.label} → ${route[index].role.label}',
+            ),
+            findsOneWidget,
+          );
+        }
         if (scenario == DemoScenario.delayedDelivery &&
             route[index].action == 'resolve-alert') {
           expect(store.tripByCode('TR-2048').status, 'In transit');
@@ -830,6 +901,8 @@ void main() {
         expect(store.visits, isEmpty);
       }
       expect(find.byKey(const ValueKey('replay-presentation')), findsOneWidget);
+      expect(find.byKey(const ValueKey('presentation-journey-summary')),
+          findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.tap(find.byKey(const ValueKey('stop-presentation')));
       await tester.pumpAndSettle();

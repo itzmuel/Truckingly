@@ -76,10 +76,21 @@ class DemoTouchPointer {
       renderObject.size.center(Offset.zero),
     );
     final overlayPosition = overlayObject.globalToLocal(globalPosition);
+    final targetTopLeft = overlayObject.globalToLocal(
+      renderObject.localToGlobal(Offset.zero),
+    );
+    final targetBottomRight = overlayObject.globalToLocal(
+      renderObject.localToGlobal(
+        Offset(renderObject.size.width, renderObject.size.height),
+      ),
+    );
+    final targetRect = Rect.fromPoints(targetTopLeft, targetBottomRight)
+        .intersect(Offset.zero & overlayObject.size);
     var pointerPosition = Offset(
       overlayObject.size.width - _touchMarkMargin - _touchMarkDiameter / 2,
       overlayObject.size.height - _touchMarkMargin - _touchMarkHeight / 2,
     );
+    var highlightTarget = false;
     final markWidth = math.min(
       _touchMarkMaxWidth,
       math.max(0.0, overlayObject.size.width - _touchMarkMargin * 2),
@@ -90,6 +101,29 @@ class DemoTouchPointer {
         child: IgnorePointer(
           child: Stack(
             children: [
+              if (highlightTarget && !targetRect.isEmpty)
+                Positioned.fromRect(
+                  rect: targetRect,
+                  child: AnimatedContainer(
+                    key: const ValueKey('presentation-target-highlight'),
+                    duration: const Duration(milliseconds: 180),
+                    decoration: BoxDecoration(
+                      color: const Color(0x1A0088FF),
+                      border: Border.all(
+                        color: const Color(0xFF0088FF),
+                        width: 3,
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x770088FF),
+                          blurRadius: 16,
+                          spreadRadius: 2,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               AnimatedPositioned(
                 left: _boundedMarkLeft(
                   pointerPosition.dx,
@@ -134,6 +168,16 @@ class DemoTouchPointer {
       pointerPosition = overlayPosition;
       entry.markNeedsBuild();
       await Future<void>.delayed(const Duration(milliseconds: 520));
+      if (!context.mounted || (shouldContinue != null && !shouldContinue())) {
+        return;
+      }
+      highlightTarget = true;
+      entry.markNeedsBuild();
+      await WidgetsBinding.instance.endOfFrame;
+      if (!context.mounted || (shouldContinue != null && !shouldContinue())) {
+        return;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 300));
       if (!context.mounted || (shouldContinue != null && !shouldContinue())) {
         return;
       }

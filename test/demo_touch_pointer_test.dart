@@ -13,6 +13,7 @@ void main() {
     final targetKey = GlobalKey();
     const label = 'Review Customer visits report';
     var activated = false;
+    var highlightedWhenActivated = false;
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -39,6 +40,10 @@ void main() {
       label: label,
       onActivate: () async {
         activated = true;
+        highlightedWhenActivated = find
+            .byKey(const ValueKey('presentation-target-highlight'))
+            .evaluate()
+            .isNotEmpty;
       },
     );
     await tester.pump(const Duration(milliseconds: 600));
@@ -59,9 +64,28 @@ void main() {
         tester.getRect(find.byIcon(Icons.touch_app_rounded)).center;
     expect((markerCenter - targetCenter).distance, lessThan(40));
 
-    await tester.pump(const Duration(seconds: 2));
-    await activation;
+    for (var attempt = 0;
+        attempt < 20 &&
+            find
+                .byKey(const ValueKey('presentation-target-highlight'))
+                .evaluate()
+                .isEmpty;
+        attempt++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(
+      find.byKey(const ValueKey('presentation-target-highlight')),
+      findsOneWidget,
+    );
+    var activationFinished = false;
+    final activationCompleted =
+        activation.then((_) => activationFinished = true);
+    for (var attempt = 0; attempt < 100 && !activationFinished; attempt++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    await activationCompleted;
     expect(activated, isTrue);
+    expect(highlightedWhenActivated, isTrue);
     expect(tester.takeException(), isNull);
   });
 }

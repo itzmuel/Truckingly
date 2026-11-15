@@ -42,6 +42,25 @@ extension _DemoPresentationSetup on _OperationsShellState {
 
   Future<void> _startPresentation() async {
     final scenario = _presentation.scenario;
+    final steps = DemoPathGenerator.generate(
+      audience: _presentation.audience,
+      scenario: scenario,
+    );
+    if (!_presentationLengthFits(steps.length, _presentation.lengthMinutes)) {
+      final minimumMinutes = (steps.length *
+              DemoPresentationController.minimumStepDuration.inSeconds /
+              60)
+          .ceil();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'This route needs at least $minimumMinutes minutes at '
+            '${DemoPresentationController.minimumStepDuration.inSeconds} seconds per scene.',
+          ),
+        ),
+      );
+      return;
+    }
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -73,10 +92,7 @@ extension _DemoPresentationSetup on _OperationsShellState {
             (role) => role.label == _presentation.audience.label,
           );
         }
-        _presentation.steps = DemoPathGenerator.generate(
-          audience: _presentation.audience,
-          scenario: scenario,
-        );
+        _presentation.steps = steps;
         _selectedTripStatus = 'All statuses';
         _alertSection = 'Needs action';
         _situationKind = 'All kinds';
@@ -95,9 +111,17 @@ extension _DemoPresentationSetup on _OperationsShellState {
         lengthMinutes: _presentation.lengthMinutes,
         stepCount: _presentation.steps.length,
         runStep: _demonstratePresentationStep,
+        stepWeights: _presentation.steps
+            .map((step) => step.durationWeight)
+            .toList(growable: false),
       );
     }, '${scenario.label} presentation started with locally saved sample data.');
   }
+
+  bool _presentationLengthFits(int stepCount, int minutes) =>
+      _presentation.mode != DemoPresentationMode.autoplay ||
+      minutes * 60 >=
+          stepCount * DemoPresentationController.minimumStepDuration.inSeconds;
 
   void _openWalkthroughScreen(String screen) {
     final destination = switch (screen) {
@@ -176,7 +200,8 @@ extension _DemoPresentationSetup on _OperationsShellState {
                     Text('${index + 1}', style: const TextStyle(fontSize: 12)),
               ),
               title: Text(_presentation.scenario.walkthrough[index].screen),
-              subtitle: Text(_presentation.scenario.walkthrough[index].instruction),
+              subtitle:
+                  Text(_presentation.scenario.walkthrough[index].instruction),
               trailing: TextButton(
                 onPressed: () => _openWalkthroughScreen(
                   _presentation.scenario.walkthrough[index].screen,
@@ -310,6 +335,7 @@ extension _DemoPresentationSetup on _OperationsShellState {
                   for (final minutes
                       in DemoPresentationStep.presentationLengths)
                     DropdownMenuItem(
+                      enabled: _presentationLengthFits(route.length, minutes),
                       value: minutes,
                       child: Text('$minutes minutes'),
                     ),
@@ -322,11 +348,32 @@ extension _DemoPresentationSetup on _OperationsShellState {
                   }
                 },
               ),
+              if (!_presentationLengthFits(
+                route.length,
+                _presentation.lengthMinutes,
+              )) ...[
+                const SizedBox(height: 6),
+                Text(
+                  'This ${route.length}-step route needs at least '
+                  '${(route.length * DemoPresentationController.minimumStepDuration.inSeconds / 60).ceil()} minutes.',
+                  key: const ValueKey('presentation-length-warning'),
+                  style: const TextStyle(
+                    color: Color(0xFFFFA000),
+                    fontSize: 11,
+                  ),
+                ),
+              ],
             ],
             const SizedBox(height: 12),
             FilledButton.icon(
               key: const ValueKey('start-presentation'),
-              onPressed: _demo.saving ? null : _startPresentation,
+              onPressed: _demo.saving ||
+                      !_presentationLengthFits(
+                        route.length,
+                        _presentation.lengthMinutes,
+                      )
+                  ? null
+                  : _startPresentation,
               icon: Icon(_presentation.mode == DemoPresentationMode.explore
                   ? Icons.explore_outlined
                   : Icons.play_arrow_rounded),

@@ -28,6 +28,28 @@ class DemoPathStep {
   final String action;
   final String description;
   final String? targetStatus;
+
+  int get durationWeight => switch (action) {
+        'create-trip' => 4,
+        'edit-trip' || 'progress-trip' || 'record-visit' => 3,
+        'inspect-trips' ||
+        'inspect-created-trip' ||
+        'inspect-trip' ||
+        'inspect-exception' ||
+        'acknowledge-alert' ||
+        'investigate-alert' ||
+        'resolve-alert' ||
+        'inspect-reports' ||
+        'inspect-visits' ||
+        'inspect-visits-report' ||
+        'inspect-intelligence' ||
+        'inspect-compliance' ||
+        'inspect-settlement' ||
+        'inspect-fleetops' ||
+        'inspect-workspace' =>
+          2,
+        _ => 1,
+      };
 }
 
 class DemoPathGenerator {

@@ -8,8 +8,7 @@ extension _DemoPresentationDispatch on _OperationsShellState {
       return;
     }
     final generation = _presentationTouchGeneration;
-    try {
-      final currentStep = _presentation.steps[step];
+    final currentStep = _presentation.steps[step];
       final action = currentStep.action;
       final role = currentStep.role;
       final mappedRole = switch (role) {
@@ -109,24 +108,6 @@ extension _DemoPresentationDispatch on _OperationsShellState {
         default:
           throw StateError('Unsupported presentation action: $action');
       }
-      _presentation.playback.completeAction(step, generation);
-    } on StateError catch (error) {
-      _showPresentationActionError(error);
-    } on Exception catch (error) {
-      _showPresentationActionError(error);
-    }
-  }
-
-  void _showPresentationActionError(Object error) {
-    if (!mounted) return;
-    _presentation.playback.setPlaying(false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        duration: const Duration(seconds: 10),
-        content: Text(
-          'Demo Director could not perform this simulated interaction: $error. No step was skipped; retry or stop the presentation.',
-        ),
-      ),
-    );
+    _presentation.playback.completeAction(step, generation);
   }
 }
