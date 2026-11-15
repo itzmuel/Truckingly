@@ -79,6 +79,8 @@ are managed by a dedicated presentation controller. Presentation trip creation,
 inspection, assignment editing, and progression are in a separate action
 extension, alongside extracted map, alert, visit, report, and workspace actions;
 step dispatch and simulated-action error handling are in their own module.
+Scenario, audience, mode, duration, route, and in-progress report/alert targets
+are grouped in a presentation session owned by the operations shell.
 Presentation controls and screen selection are in a presentation view module;
 scenario/role setup, route preview, and confirmed start/replay are in a setup
 module. Narration stays with the presentation view; the app shell retains the
@@ -87,7 +89,15 @@ save/state waits, and playback controls are in a runtime helper module. The
 Alerts screen UI is isolated from the app shell in its own view module.
 The More workspace list and its detail-page routing are also extracted into a
 separate view module. FleetOps, Settlement, and Intelligence workspace screens
-are grouped in a dedicated view module.
+are grouped in a dedicated view module. The Home operations dashboard is also
+isolated into its own view module, and the Trips screen has its own view module.
+Demo controls and customer-visit simulation UI are also separated into a
+dedicated view module. Shared operation cards, notices, trip/alert cards, and
+navigation widgets are in a reusable widget module. App-shell trip/alert
+navigation, simulated save feedback, and page layout helpers are separated
+from shell state and lifecycle management. Persistence startup and MaterialApp
+theme composition are in an app-entry module, keeping the operations shell
+focused on operational state and navigation.
 
 The role paths use the existing app controls and saved demo operations:
 

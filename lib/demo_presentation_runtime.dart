@@ -1,7 +1,7 @@
 part of 'main.dart';
 
 extension _DemoPresentationRuntime on _OperationsShellState {
-  Future<void> _completePresentationStep() => _presentationPlayback.advance();
+  Future<void> _completePresentationStep() => _presentation.playback.advance();
 
   Future<void> _performPresentationAction(
     GlobalKey target,
@@ -65,15 +65,15 @@ extension _DemoPresentationRuntime on _OperationsShellState {
   }
 
   void _setPresentationPlaying(bool playing) {
-    _presentationPlayback.setPlaying(playing);
+    _presentation.playback.setPlaying(playing);
   }
 
   void _jumpPresentationTo(int index) {
-    _presentationPlayback.jumpTo(index);
+    _presentation.playback.jumpTo(index);
   }
 
   void _stopPresentation() {
-    _presentationPlayback.stop();
+    _presentation.playback.stop();
     _setPresentationActionState(() {
       _tab = 0;
       _morePage = null;

@@ -1,7 +1,7 @@
 part of 'main.dart';
 
 extension _DemoPresentationView on _OperationsShellState {
-  String _presentationTimeLabel() => _presentationPlayback.timeLabel;
+  String _presentationTimeLabel() => _presentation.playback.timeLabel;
 
   String _presentationNarration(DemoPathStep step) {
     final focus = switch (step.role) {
@@ -37,13 +37,13 @@ extension _DemoPresentationView on _OperationsShellState {
           trips: _demo.trips,
           alerts: _demo.alerts,
           visits: _demo.visits,
-          presentationSectionKey: _presentationReportSection != null &&
-                  _presentationReportSection != 'Customer visits'
+          presentationSectionKey: _presentation.reportSection != null &&
+                  _presentation.reportSection != 'Customer visits'
               ? _presentationPrimaryTargetKey
               : null,
-          presentationSection: _presentationReportSection,
+          presentationSection: _presentation.reportSection,
           presentationCustomerVisitsKey:
-              _presentationReportSection == 'Customer visits'
+              _presentation.reportSection == 'Customer visits'
                   ? _presentationPrimaryTargetKey
                   : null,
           scrollController: _presentationReportsScrollController,
@@ -59,8 +59,8 @@ extension _DemoPresentationView on _OperationsShellState {
   }
 
   Widget _presentationPage() {
-    final step = _presentationSteps[_presentationStep];
-    final lastStep = _presentationStep == _presentationSteps.length - 1;
+    final step = _presentation.steps[_presentationStep];
+    final lastStep = _presentationStep == _presentation.steps.length - 1;
     return Column(
       children: [
         Padding(
@@ -76,7 +76,7 @@ extension _DemoPresentationView on _OperationsShellState {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        '${_presentationMode.label} · ${step.role.label}',
+                        '${_presentation.mode.label} · ${step.role.label}',
                         style: const TextStyle(fontWeight: FontWeight.w700),
                       ),
                     ),
@@ -90,14 +90,14 @@ extension _DemoPresentationView on _OperationsShellState {
                   ],
                 ),
                 LinearProgressIndicator(
-                  value: (_presentationStep + 1) / _presentationSteps.length,
+                  value: (_presentationStep + 1) / _presentation.steps.length,
                 ),
                 const SizedBox(height: 8),
                 Row(
                   children: [
                     Expanded(
                       child: Text(
-                        'STEP ${_presentationStep + 1} OF ${_presentationSteps.length} · ${step.screen.toUpperCase()}',
+                        'STEP ${_presentationStep + 1} OF ${_presentation.steps.length} · ${step.screen.toUpperCase()}',
                         style: const TextStyle(
                           color: _muted,
                           fontSize: 10,
@@ -106,7 +106,7 @@ extension _DemoPresentationView on _OperationsShellState {
                         ),
                       ),
                     ),
-                    if (_presentationMode == DemoPresentationMode.autoplay)
+                    if (_presentation.mode == DemoPresentationMode.autoplay)
                       Text(
                         _presentationTimeLabel(),
                         key: const ValueKey('presentation-countdown'),
@@ -183,7 +183,7 @@ extension _DemoPresentationView on _OperationsShellState {
                           : null,
                       icon: const Icon(Icons.skip_previous_rounded),
                     ),
-                    if (_presentationMode == DemoPresentationMode.autoplay)
+                    if (_presentation.mode == DemoPresentationMode.autoplay)
                       IconButton.filled(
                         key: ValueKey(_presentationPlaying
                             ? 'presentation-pause'
@@ -199,7 +199,7 @@ extension _DemoPresentationView on _OperationsShellState {
                       const Icon(Icons.touch_app_outlined,
                           size: 20, color: _muted),
                     const Spacer(),
-                    if (_presentationMode == DemoPresentationMode.autoplay &&
+                    if (_presentation.mode == DemoPresentationMode.autoplay &&
                         lastStep)
                       TextButton.icon(
                         key: const ValueKey('replay-presentation'),
@@ -207,7 +207,8 @@ extension _DemoPresentationView on _OperationsShellState {
                         icon: const Icon(Icons.replay_rounded),
                         label: const Text('Replay'),
                       )
-                    else if (_presentationMode == DemoPresentationMode.guided &&
+                    else if (_presentation.mode ==
+                            DemoPresentationMode.guided &&
                         lastStep)
                       FilledButton(
                         key: const ValueKey('finish-presentation'),

@@ -3,13 +3,13 @@ part of 'main.dart';
 extension _DemoPresentationDispatch on _OperationsShellState {
   Future<void> _demonstratePresentationStep(int step) async {
     if (!_presentationActive ||
-        _presentationMode == DemoPresentationMode.explore ||
+        _presentation.mode == DemoPresentationMode.explore ||
         _completedPresentationActions.contains(step)) {
       return;
     }
     final generation = _presentationTouchGeneration;
     try {
-      final currentStep = _presentationSteps[step];
+      final currentStep = _presentation.steps[step];
       final action = currentStep.action;
       final role = currentStep.role;
       final mappedRole = switch (role) {
@@ -109,7 +109,7 @@ extension _DemoPresentationDispatch on _OperationsShellState {
         default:
           throw StateError('Unsupported presentation action: $action');
       }
-      _presentationPlayback.completeAction(step, generation);
+      _presentation.playback.completeAction(step, generation);
     } on StateError catch (error) {
       _showPresentationActionError(error);
     } on Exception catch (error) {
@@ -119,7 +119,7 @@ extension _DemoPresentationDispatch on _OperationsShellState {
 
   void _showPresentationActionError(Object error) {
     if (!mounted) return;
-    _presentationPlayback.setPlaying(false);
+    _presentation.playback.setPlaying(false);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         duration: const Duration(seconds: 10),

@@ -45,7 +45,7 @@ extension _OperationsAlertsView on _OperationsShellState {
               key: _presentationActive &&
                       _presentationCurrentStep.action ==
                           'inspect-alert-history' &&
-                      section == _presentationAlertTargetSection
+                      section == _presentation.alertTargetSection
                   ? _presentationPrimaryTargetKey
                   : null,
               child: ChoiceChip(

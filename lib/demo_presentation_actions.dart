@@ -40,7 +40,7 @@ extension _DemoPresentationTripActions on _OperationsShellState {
         if (!_presentationCanContinue(generation) || createdTrip == null) {
           return;
         }
-        _presentationTripCode = createdTrip.code;
+        _presentation.tripCode = createdTrip.code;
         await _waitForPresentationState(
           () => _presentationTripWizardKey.currentState == null,
           generation,
@@ -60,7 +60,7 @@ extension _DemoPresentationTripActions on _OperationsShellState {
     if (trip == null) {
       throw StateError('No eligible sample trip is available to inspect.');
     }
-    _presentationTripCode = trip.code;
+    _presentation.tripCode = trip.code;
     await _performPresentationAction(
       _presentationPrimaryTargetKey,
       action == 'inspect-exception'
@@ -170,7 +170,7 @@ extension _DemoPresentationTripActions on _OperationsShellState {
     if (!Trip.journey.contains(targetStatus)) {
       throw StateError('Unsupported trip target status: $targetStatus.');
     }
-    _presentationTripCode = initialTrip.code;
+    _presentation.tripCode = initialTrip.code;
     await _performPresentationAction(
       _presentationPrimaryTargetKey,
       'Open assigned trip',
@@ -279,7 +279,7 @@ extension _DemoPresentationOperationsActions on _OperationsShellState {
   Future<void> _inspectPresentationAlertHistory(int generation) async {
     for (final section in ['Earlier detections', 'History']) {
       _setPresentationActionState(
-        () => _presentationAlertTargetSection = section,
+        () => _presentation.alertTargetSection = section,
       );
       await WidgetsBinding.instance.endOfFrame;
       await _performPresentationAction(
@@ -532,7 +532,7 @@ extension _DemoPresentationOperationsActions on _OperationsShellState {
     for (final section in sections) {
       if (!_presentationCanContinue(generation)) return;
       _setPresentationActionState(
-        () => _presentationReportSection = section,
+        () => _presentation.reportSection = section,
       );
       await WidgetsBinding.instance.endOfFrame;
       final reports = _presentationReportsPageKey.currentState;
@@ -573,7 +573,7 @@ extension _DemoPresentationOperationsActions on _OperationsShellState {
 
   Future<void> _inspectPresentationVisitsReport(int generation) async {
     _setPresentationActionState(
-      () => _presentationReportSection = 'Customer visits',
+      () => _presentation.reportSection = 'Customer visits',
     );
     await WidgetsBinding.instance.endOfFrame;
     await _performPresentationAction(

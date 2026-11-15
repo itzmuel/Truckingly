@@ -2,7 +2,7 @@ part of 'main.dart';
 
 extension _DemoPresentationSetup on _OperationsShellState {
   Future<void> _loadGuidedScenario() async {
-    final scenario = _scenarioChoice;
+    final scenario = _presentation.scenario;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -28,7 +28,7 @@ extension _DemoPresentationSetup on _OperationsShellState {
       await _demo.loadScenario(scenario);
       if (!mounted) return;
       _setPresentationActionState(() {
-        _scenarioChoice = scenario;
+        _presentation.scenario = scenario;
         _selectedTripStatus = 'All statuses';
         _alertSection = 'Needs action';
         _situationKind = 'All kinds';
@@ -41,7 +41,7 @@ extension _DemoPresentationSetup on _OperationsShellState {
   }
 
   Future<void> _startPresentation() async {
-    final scenario = _scenarioChoice;
+    final scenario = _presentation.scenario;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -63,18 +63,18 @@ extension _DemoPresentationSetup on _OperationsShellState {
       ),
     );
     if (confirmed != true || !mounted) return;
-    _presentationPlayback.stop();
+    _presentation.playback.stop();
     await _saveDemo(() async {
       await _demo.loadScenario(scenario);
       if (!mounted) return;
       _setPresentationActionState(() {
-        if (_presentationRole != DemoPathAudience.allPersonnel) {
+        if (_presentation.audience != DemoPathAudience.allPersonnel) {
           _demoRole = _DemoRole.values.firstWhere(
-            (role) => role.label == _presentationRole.label,
+            (role) => role.label == _presentation.audience.label,
           );
         }
-        _presentationSteps = DemoPathGenerator.generate(
-          audience: _presentationRole,
+        _presentation.steps = DemoPathGenerator.generate(
+          audience: _presentation.audience,
           scenario: scenario,
         );
         _selectedTripStatus = 'All statuses';
@@ -82,18 +82,18 @@ extension _DemoPresentationSetup on _OperationsShellState {
         _situationKind = 'All kinds';
         _historyOutcome = 'All closed situations';
         _intelligenceDays = 30;
-        _presentationTripCode = null;
-        _presentationReportSection = null;
-        _presentationAlertTargetSection = null;
-        _tab = _presentationMode == DemoPresentationMode.explore ? 0 : 4;
-        _morePage = _presentationMode == DemoPresentationMode.explore
+        _presentation.tripCode = null;
+        _presentation.reportSection = null;
+        _presentation.alertTargetSection = null;
+        _tab = _presentation.mode == DemoPresentationMode.explore ? 0 : 4;
+        _morePage = _presentation.mode == DemoPresentationMode.explore
             ? null
             : 'Presentation';
       });
-      _presentationPlayback.start(
-        mode: _presentationMode,
-        lengthMinutes: _presentationLength,
-        stepCount: _presentationSteps.length,
+      _presentation.playback.start(
+        mode: _presentation.mode,
+        lengthMinutes: _presentation.lengthMinutes,
+        stepCount: _presentation.steps.length,
         runStep: _demonstratePresentationStep,
       );
     }, '${scenario.label} presentation started with locally saved sample data.');
@@ -129,8 +129,8 @@ extension _DemoPresentationSetup on _OperationsShellState {
           ),
           const SizedBox(height: 12),
           DropdownButtonFormField<DemoScenario>(
-            key: ValueKey('guided-scenario-${_scenarioChoice.name}'),
-            initialValue: _scenarioChoice,
+            key: ValueKey('guided-scenario-${_presentation.scenario.name}'),
+            initialValue: _presentation.scenario,
             isExpanded: true,
             decoration: const InputDecoration(labelText: 'Scenario'),
             items: [
@@ -145,14 +145,14 @@ extension _DemoPresentationSetup on _OperationsShellState {
                 : (scenario) {
                     if (scenario != null) {
                       _setPresentationActionState(
-                        () => _scenarioChoice = scenario,
+                        () => _presentation.scenario = scenario,
                       );
                     }
                   },
           ),
           const SizedBox(height: 8),
           Text(
-            _scenarioChoice.summary,
+            _presentation.scenario.summary,
             key: const ValueKey('guided-scenario-summary'),
             style: const TextStyle(color: _muted, fontSize: 12, height: 1.5),
           ),
@@ -161,11 +161,11 @@ extension _DemoPresentationSetup on _OperationsShellState {
             key: const ValueKey('load-guided-scenario'),
             onPressed: _demo.saving ? null : _loadGuidedScenario,
             icon: const Icon(Icons.play_arrow_rounded),
-            label: Text('Load ${_scenarioChoice.label}'),
+            label: Text('Load ${_presentation.scenario.label}'),
           ),
           const SizedBox(height: 8),
           for (var index = 0;
-              index < _scenarioChoice.walkthrough.length;
+              index < _presentation.scenario.walkthrough.length;
               index++)
             ListTile(
               key: ValueKey('walkthrough-step-$index'),
@@ -175,11 +175,11 @@ extension _DemoPresentationSetup on _OperationsShellState {
                 child:
                     Text('${index + 1}', style: const TextStyle(fontSize: 12)),
               ),
-              title: Text(_scenarioChoice.walkthrough[index].screen),
-              subtitle: Text(_scenarioChoice.walkthrough[index].instruction),
+              title: Text(_presentation.scenario.walkthrough[index].screen),
+              subtitle: Text(_presentation.scenario.walkthrough[index].instruction),
               trailing: TextButton(
                 onPressed: () => _openWalkthroughScreen(
-                  _scenarioChoice.walkthrough[index].screen,
+                  _presentation.scenario.walkthrough[index].screen,
                 ),
                 child: const Text('Open'),
               ),
@@ -191,8 +191,8 @@ extension _DemoPresentationSetup on _OperationsShellState {
 
   Widget _walkthroughPage() {
     final route = DemoPathGenerator.generate(
-      audience: _presentationRole,
-      scenario: _scenarioChoice,
+      audience: _presentation.audience,
+      scenario: _presentation.scenario,
     );
     return _pageScroll([
       Align(
@@ -221,8 +221,8 @@ extension _DemoPresentationSetup on _OperationsShellState {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<DemoPresentationMode>(
-              key: ValueKey('presentation-mode-${_presentationMode.name}'),
-              initialValue: _presentationMode,
+              key: ValueKey('presentation-mode-${_presentation.mode.name}'),
+              initialValue: _presentation.mode,
               isExpanded: true,
               decoration: const InputDecoration(labelText: 'Presentation mode'),
               items: [
@@ -232,21 +232,21 @@ extension _DemoPresentationSetup on _OperationsShellState {
               onChanged: (mode) {
                 if (mode != null) {
                   _setPresentationActionState(
-                    () => _presentationMode = mode,
+                    () => _presentation.mode = mode,
                   );
                 }
               },
             ),
             const SizedBox(height: 8),
             Text(
-              _presentationMode.description,
+              _presentation.mode.description,
               key: const ValueKey('presentation-mode-description'),
               style: const TextStyle(color: _muted, fontSize: 12),
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<DemoPathAudience>(
               key: const ValueKey('presentation-role-switcher'),
-              initialValue: _presentationRole,
+              initialValue: _presentation.audience,
               isExpanded: true,
               decoration:
                   const InputDecoration(labelText: 'Personnel perspective'),
@@ -257,21 +257,21 @@ extension _DemoPresentationSetup on _OperationsShellState {
               onChanged: (role) {
                 if (role != null) {
                   _setPresentationActionState(
-                    () => _presentationRole = role,
+                    () => _presentation.audience = role,
                   );
                 }
               },
             ),
             ExpansionTile(
               key: ValueKey(
-                'presentation-route-${_presentationRole.name}-${_scenarioChoice.name}',
+                'presentation-route-${_presentation.audience.name}-${_presentation.scenario.name}',
               ),
               tilePadding: EdgeInsets.zero,
               title: Text('Preview route · ${route.length} steps'),
               subtitle: Text(
-                _presentationRole == DemoPathAudience.allPersonnel
+                _presentation.audience == DemoPathAudience.allPersonnel
                     ? 'Administrator → Dispatcher → Driver → Supervisor'
-                    : '${_presentationRole.label} · ${_scenarioChoice.label}',
+                    : '${_presentation.audience.label} · ${_presentation.scenario.label}',
               ),
               children: [
                 for (var index = 0; index < route.length; index++)
@@ -296,11 +296,13 @@ extension _DemoPresentationSetup on _OperationsShellState {
                   ),
               ],
             ),
-            if (_presentationMode == DemoPresentationMode.autoplay) ...[
+            if (_presentation.mode == DemoPresentationMode.autoplay) ...[
               const SizedBox(height: 12),
               DropdownButtonFormField<int>(
-                key: ValueKey('presentation-length-$_presentationLength'),
-                initialValue: _presentationLength,
+                key: ValueKey(
+                  'presentation-length-${_presentation.lengthMinutes}',
+                ),
+                initialValue: _presentation.lengthMinutes,
                 isExpanded: true,
                 decoration:
                     const InputDecoration(labelText: 'Presentation length'),
@@ -315,7 +317,7 @@ extension _DemoPresentationSetup on _OperationsShellState {
                 onChanged: (minutes) {
                   if (minutes != null) {
                     _setPresentationActionState(
-                      () => _presentationLength = minutes,
+                      () => _presentation.lengthMinutes = minutes,
                     );
                   }
                 },
@@ -325,13 +327,13 @@ extension _DemoPresentationSetup on _OperationsShellState {
             FilledButton.icon(
               key: const ValueKey('start-presentation'),
               onPressed: _demo.saving ? null : _startPresentation,
-              icon: Icon(_presentationMode == DemoPresentationMode.explore
+              icon: Icon(_presentation.mode == DemoPresentationMode.explore
                   ? Icons.explore_outlined
                   : Icons.play_arrow_rounded),
               label: Text(
-                _presentationMode == DemoPresentationMode.explore
-                    ? 'Explore ${_scenarioChoice.label}'
-                    : 'Start ${_presentationMode.label.toLowerCase()}',
+                _presentation.mode == DemoPresentationMode.explore
+                    ? 'Explore ${_presentation.scenario.label}'
+                    : 'Start ${_presentation.mode.label.toLowerCase()}',
               ),
             ),
           ],
