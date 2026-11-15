@@ -86,7 +86,8 @@ underlying application screens and navigation. Simulated pointer activation,
 save/state waits, and playback controls are in a runtime helper module. The
 Alerts screen UI is isolated from the app shell in its own view module.
 The More workspace list and its detail-page routing are also extracted into a
-separate view module.
+separate view module. FleetOps, Settlement, and Intelligence workspace screens
+are grouped in a dedicated view module.
 
 The role paths use the existing app controls and saved demo operations:
 
