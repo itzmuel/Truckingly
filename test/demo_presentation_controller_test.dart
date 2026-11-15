@@ -72,6 +72,8 @@ void main() {
     expect(controller.stepIndex, 1);
     expect(ranSteps, [0, 1]);
     expect(controller.completedActions, {0, 1});
+    expect(controller.outcome, DemoPresentationOutcome.completed);
+    expect(controller.finishedSuccessfully, isTrue);
   });
 
   testWidgets('stopping invalidates an in-flight playback action',
@@ -146,6 +148,8 @@ void main() {
     expect(controller.actionError.toString(), contains('sample action failed'));
     expect(controller.playing, isFalse);
     expect(controller.actionInProgress, isFalse);
+    expect(controller.outcome, DemoPresentationOutcome.failed);
+    expect(controller.finishedSuccessfully, isFalse);
     expect(tester.takeException(), isNull);
 
     await controller.retryFailedAction();
@@ -154,6 +158,8 @@ void main() {
     expect(controller.actionError, isNull);
     expect(controller.completedActions, {0});
     expect(controller.playing, isFalse);
+    expect(controller.outcome, DemoPresentationOutcome.completed);
+    expect(controller.finishedSuccessfully, isTrue);
   });
 
   testWidgets('skipping a failed action advances and records the skipped step',
@@ -189,6 +195,37 @@ void main() {
     expect(controller.skippedActions, {0});
     expect(controller.completedActions, {1});
     expect(controller.actionError, isNull);
+    expect(controller.outcome, DemoPresentationOutcome.completedWithSkips);
+    expect(controller.finishedSuccessfully, isFalse);
+  });
+
+  testWidgets('final countdown fails if the final action did not complete',
+      (tester) async {
+    final controller = DemoPresentationController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ListenableBuilder(
+          listenable: controller,
+          builder: (context, child) => Text(controller.timeLabel),
+        ),
+      ),
+    );
+    controller.start(
+      mode: DemoPresentationMode.autoplay,
+      lengthMinutes: 1,
+      stepCount: 1,
+      runStep: (step) async {},
+    );
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 60));
+
+    expect(controller.actionError, isA<StateError>());
+    expect(controller.outcome, DemoPresentationOutcome.failed);
+    expect(controller.finishedSuccessfully, isFalse);
+    expect(controller.playing, isFalse);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('backward jumps are observational for unfinished actions',
@@ -232,7 +269,7 @@ void main() {
     expect(ranSteps, [0, 2]);
   });
 
-  testWidgets('Full Enterprise autoplay completes each route using its timer',
+  testWidgets('Full Enterprise routes complete through their autoplay timers',
       (tester) async {
     for (final scenario in DemoScenario.values) {
       final controller = DemoPresentationController();

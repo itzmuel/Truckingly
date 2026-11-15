@@ -2,6 +2,11 @@ part of 'main.dart';
 
 extension _DemoPresentationTripActions on _OperationsShellState {
   Future<void> _createPresentationTrip(int generation) async {
+    final existingCode = _presentation.tripCode;
+    if (existingCode != null &&
+        _demo.trips.any((trip) => trip.code == existingCode)) {
+      return;
+    }
     await _performPresentationAction(
       _presentationPrimaryTargetKey,
       'Open new trip wizard',
@@ -10,6 +15,9 @@ extension _DemoPresentationTripActions on _OperationsShellState {
       onActivate: () async {
         final tripResult = _showCreateTrip(
           presentationNextKey: _presentationSecondaryTargetKey,
+          onPresentationTripCreated: (trip) {
+            _presentation.tripCode = trip.code;
+          },
         );
         await _waitForPresentationState(
           () => _presentationTripWizardKey.currentState != null,
@@ -400,18 +408,21 @@ extension _DemoPresentationOperationsActions on _OperationsShellState {
       throw StateError('The demo alert assignment was not saved.');
     }
     if (!_presentationCanContinue(generation)) return;
-    final notesBefore = _demo.alertById(alert.id).notes.length;
-    await _performPresentationAction(
-      _presentationFourthTargetKey,
-      'Add investigation note',
-      generation,
-      onActivate: details.addNoteForPresentation,
-      scrollController: _presentationDetailsScrollController,
-    );
-    await _waitForDemoSave(generation);
-    if (_presentationCanContinue(generation) &&
-        _demo.alertById(alert.id).notes.length <= notesBefore) {
-      throw StateError('The investigation note was not saved.');
+    const presentationNote =
+        'Supervisor reviewed the simulated situation and linked trip details.';
+    if (!_demo.alertById(alert.id).notes.contains(presentationNote)) {
+      await _performPresentationAction(
+        _presentationFourthTargetKey,
+        'Add investigation note',
+        generation,
+        onActivate: details.addNoteForPresentation,
+        scrollController: _presentationDetailsScrollController,
+      );
+      await _waitForDemoSave(generation);
+      if (_presentationCanContinue(generation) &&
+          !_demo.alertById(alert.id).notes.contains(presentationNote)) {
+        throw StateError('The investigation note was not saved.');
+      }
     }
   }
 
@@ -472,31 +483,61 @@ extension _DemoPresentationOperationsActions on _OperationsShellState {
       _visitVehicle = vehicle;
       _visitTripCode = trip?.code ?? assignedTrip?.code;
     });
-    await _performPresentationAction(
-      _presentationPrimaryTargetKey,
-      'Record site arrival',
-      generation,
-      onActivate: () async {
-        await _saveDemo(
-          () => _demo.recordSiteArrival(
-            vehicle: vehicle,
-            site: _visitSite,
-            tripCode: _visitTripCode,
-            now: DateTime.now(),
-          ),
-          'Sample site arrival recorded and saved.',
-        );
-      },
-      scrollController: _presentationMoreScrollController,
-    );
-    await _waitForDemoSave(generation);
-    if (!_presentationCanContinue(generation)) return;
-    final openVisit = _demo.openVisits
-        .where((visit) => visit.vehicle == vehicle && visit.site == _visitSite)
-        .firstOrNull;
-    if (openVisit == null) {
-      throw StateError('The simulated site arrival was not recorded.');
+    var presentationVisit = _presentation.visitId == null
+        ? null
+        : _demo.visits
+            .where((visit) => visit.id == _presentation.visitId)
+            .firstOrNull;
+    if (presentationVisit == null) {
+      presentationVisit = _demo.visits
+          .where((visit) =>
+              visit.vehicle == vehicle &&
+              visit.site == _visitSite &&
+              visit.tripCode == (trip?.code ?? assignedTrip?.code))
+          .toList()
+          .lastOrNull;
+      if (presentationVisit != null) {
+        _presentation.visitId = presentationVisit.id;
+      }
     }
+    if (presentationVisit == null) {
+      await _performPresentationAction(
+        _presentationPrimaryTargetKey,
+        'Record site arrival',
+        generation,
+        onActivate: () async {
+          await _saveDemo(
+            () => _demo.recordSiteArrival(
+              vehicle: vehicle,
+              site: _visitSite,
+              tripCode: _visitTripCode,
+              now: DateTime.now(),
+            ),
+            'Sample site arrival recorded and saved.',
+          );
+        },
+        scrollController: _presentationMoreScrollController,
+      );
+      await _waitForDemoSave(generation);
+      if (!_presentationCanContinue(generation)) return;
+      presentationVisit = _demo.openVisits
+          .where((visit) =>
+              visit.vehicle == vehicle &&
+              visit.site == _visitSite &&
+              visit.tripCode == _visitTripCode)
+          .firstOrNull;
+      if (presentationVisit == null) {
+        throw StateError('The simulated site arrival was not recorded.');
+      }
+      _presentation.visitId = presentationVisit.id;
+    }
+    if (!presentationVisit.isOpen) {
+      if (!presentationVisit.isCompleted) {
+        throw StateError('The simulated site visit is incomplete.');
+      }
+      return;
+    }
+    final openVisit = presentationVisit;
     await _performPresentationAction(
       _presentationPrimaryTargetKey,
       'Record site departure',
@@ -511,7 +552,9 @@ extension _DemoPresentationOperationsActions on _OperationsShellState {
     );
     await _waitForDemoSave(generation);
     if (_presentationCanContinue(generation) &&
-        _demo.openVisits.any((visit) => visit.id == openVisit.id)) {
+        _demo.visits
+            .where((visit) => visit.id == openVisit.id)
+            .any((visit) => !visit.isCompleted)) {
       throw StateError('The simulated site departure was not recorded.');
     }
   }

@@ -7,6 +7,12 @@ import 'demo_director.dart';
 
 typedef DemoPresentationStepRunner = Future<void> Function(int step);
 
+enum DemoPresentationOutcome {
+  completed,
+  completedWithSkips,
+  failed,
+}
+
 class DemoPresentationController extends ChangeNotifier {
   static const minimumStepDuration = Duration(seconds: 8);
 
@@ -20,6 +26,7 @@ class DemoPresentationController extends ChangeNotifier {
   bool _playing = false;
   bool _actionInProgress = false;
   bool _observational = false;
+  DemoPresentationOutcome? _outcome;
   Object? _actionError;
   StackTrace? _actionErrorStackTrace;
   int? _failedStep;
@@ -38,6 +45,9 @@ class DemoPresentationController extends ChangeNotifier {
   bool get playing => _playing;
   bool get actionInProgress => _actionInProgress;
   bool get observational => _observational;
+  DemoPresentationOutcome? get outcome => _outcome;
+  bool get finishedSuccessfully =>
+      _outcome == DemoPresentationOutcome.completed;
   Object? get actionError => _actionError;
   StackTrace? get actionErrorStackTrace => _actionErrorStackTrace;
   Set<int> get completedActions => Set.unmodifiable(_completedActions);
@@ -116,6 +126,7 @@ class DemoPresentationController extends ChangeNotifier {
     _playing = mode == DemoPresentationMode.autoplay;
     _actionInProgress = false;
     _observational = false;
+    _outcome = null;
     _actionError = null;
     _actionErrorStackTrace = null;
     _failedStep = null;
@@ -195,6 +206,7 @@ class DemoPresentationController extends ChangeNotifier {
           : _furthestStepIndex;
       _moveToStep(step + 1);
     } else {
+      _updateOutcome();
       notifyListeners();
     }
   }
@@ -214,6 +226,7 @@ class DemoPresentationController extends ChangeNotifier {
   void completeAction(int step, int generation) {
     if (!canContinue(generation)) return;
     _completedActions.add(step);
+    _updateOutcome();
     notifyListeners();
   }
 
@@ -233,7 +246,23 @@ class DemoPresentationController extends ChangeNotifier {
     _actionError = null;
     _actionErrorStackTrace = null;
     _failedStep = null;
+    _outcome = null;
     if (notify) notifyListeners();
+  }
+
+  void _updateOutcome() {
+    if (_actionError != null || _stepCount == 0) {
+      _outcome = _actionError == null ? null : DemoPresentationOutcome.failed;
+      return;
+    }
+    final accountedFor = _completedActions.length + _skippedActions.length;
+    if (_stepIndex != _stepCount - 1 || accountedFor != _stepCount) {
+      _outcome = null;
+      return;
+    }
+    _outcome = _skippedActions.isEmpty
+        ? DemoPresentationOutcome.completed
+        : DemoPresentationOutcome.completedWithSkips;
   }
 
   Future<void> _runAction(int step) async {
@@ -259,6 +288,7 @@ class DemoPresentationController extends ChangeNotifier {
         _actionError = error;
         _actionErrorStackTrace = stackTrace;
         _failedStep = step;
+        _outcome = DemoPresentationOutcome.failed;
       }
     } finally {
       if (canContinue(generation)) {
@@ -303,6 +333,16 @@ class DemoPresentationController extends ChangeNotifier {
       if (_stepIndex >= _stepCount - 1) {
         _secondsRemaining = 0;
         _playing = false;
+        if (_completedActions.contains(_stepIndex)) {
+          _updateOutcome();
+        } else {
+          _actionError = StateError(
+            'The final presentation action did not complete before its time expired.',
+          );
+          _actionErrorStackTrace = StackTrace.current;
+          _failedStep = _stepIndex;
+          _outcome = DemoPresentationOutcome.failed;
+        }
         notifyListeners();
         return;
       }

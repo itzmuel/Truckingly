@@ -54,6 +54,12 @@ extension _DemoPresentationView on _OperationsShellState {
   Widget _presentationSummary() {
     final playback = _presentation.playback;
     final completed = playback.completedActions;
+    final outcomeLabel = switch (playback.outcome) {
+      DemoPresentationOutcome.completed => 'Completed',
+      DemoPresentationOutcome.completedWithSkips => 'Completed with skipped steps',
+      DemoPresentationOutcome.failed => 'Failed',
+      null => 'In progress',
+    };
     final handledAlerts = completed.where((index) {
       final action = _presentation.steps[index].action;
       return action == 'acknowledge-alert' || action == 'resolve-alert';
@@ -76,9 +82,14 @@ extension _DemoPresentationView on _OperationsShellState {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
-            'Journey complete',
-            style: TextStyle(fontWeight: FontWeight.w800, color: _green),
+          Text(
+            outcomeLabel,
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              color: playback.outcome == DemoPresentationOutcome.completed
+                  ? _green
+                  : const Color(0xFFFFA000),
+            ),
           ),
           const SizedBox(height: 4),
           Text(
@@ -138,9 +149,7 @@ extension _DemoPresentationView on _OperationsShellState {
     final lastStep = _presentationStep == _presentation.steps.length - 1;
     final playback = _presentation.playback;
     final hasPresentationError = playback.actionError != null;
-    final journeyFinished = lastStep &&
-        (playback.completedActions.contains(_presentationStep) ||
-            playback.skippedActions.contains(_presentationStep));
+    final showOutcome = playback.outcome != null;
     return Column(
       children: [
         Padding(
@@ -322,7 +331,7 @@ extension _DemoPresentationView on _OperationsShellState {
                     ],
                   ),
                 ],
-                if (journeyFinished) _presentationSummary(),
+                if (showOutcome) _presentationSummary(),
                 const SizedBox(height: 8),
                 Row(
                   children: [

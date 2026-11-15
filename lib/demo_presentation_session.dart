@@ -9,6 +9,7 @@ class DemoPresentationSession {
   int lengthMinutes = 5;
   List<DemoPathStep> steps = const [];
   String? tripCode;
+  String? visitId;
   String? reportSection;
   String? alertTargetSection;
 }

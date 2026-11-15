@@ -9,11 +9,13 @@ class TripWizard extends StatefulWidget {
     required this.store,
     this.trip,
     this.presentationNextKey,
+    this.onPresentationTripCreated,
   });
 
   final DemoStore store;
   final Trip? trip;
   final GlobalKey? presentationNextKey;
+  final ValueChanged<Trip>? onPresentationTripCreated;
 
   @override
   TripWizardState createState() => TripWizardState();
@@ -95,6 +97,7 @@ class TripWizardState extends State<TripWizard> {
       final trip = _editing
           ? await widget.store.editTrip(widget.trip!.code, draft)
           : await widget.store.createTrip(draft);
+      if (!_editing) widget.onPresentationTripCreated?.call(trip);
       if (!mounted) return;
       setState(() => _saving = false);
       Navigator.of(context).pop(trip);

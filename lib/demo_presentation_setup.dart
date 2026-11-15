@@ -99,6 +99,7 @@ extension _DemoPresentationSetup on _OperationsShellState {
         _historyOutcome = 'All closed situations';
         _intelligenceDays = 30;
         _presentation.tripCode = null;
+        _presentation.visitId = null;
         _presentation.reportSection = null;
         _presentation.alertTargetSection = null;
         _tab = _presentation.mode == DemoPresentationMode.explore ? 0 : 4;

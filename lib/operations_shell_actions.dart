@@ -97,7 +97,10 @@ extension _OperationsShellActions on _OperationsShellState {
     );
   }
 
-  Future<Trip?> _showCreateTrip({GlobalKey? presentationNextKey}) async {
+  Future<Trip?> _showCreateTrip({
+    GlobalKey? presentationNextKey,
+    ValueChanged<Trip>? onPresentationTripCreated,
+  }) async {
     final trip = await Navigator.of(context).push<Trip>(
       MaterialPageRoute(
         fullscreenDialog: true,
@@ -105,6 +108,7 @@ extension _OperationsShellActions on _OperationsShellState {
           key: presentationNextKey == null ? null : _presentationTripWizardKey,
           store: _demo,
           presentationNextKey: presentationNextKey,
+          onPresentationTripCreated: onPresentationTripCreated,
         ),
       ),
     );

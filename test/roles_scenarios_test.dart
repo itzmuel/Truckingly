@@ -837,7 +837,7 @@ void main() {
   });
 
   testWidgets(
-      'Full Enterprise autoplay hands off one trip across every scenario',
+      'Real app Full Enterprise autoplay finishes every role without Next taps',
       (tester) async {
     for (final scenario in DemoScenario.values) {
       final store = DemoStore.memory();
@@ -903,6 +903,8 @@ void main() {
       expect(find.byKey(const ValueKey('replay-presentation')), findsOneWidget);
       expect(find.byKey(const ValueKey('presentation-journey-summary')),
           findsOneWidget);
+      expect(find.text('Completed'), findsOneWidget);
+      expect(find.byKey(const ValueKey('presentation-next')), findsNothing);
       expect(tester.takeException(), isNull);
       await tester.tap(find.byKey(const ValueKey('stop-presentation')));
       await tester.pumpAndSettle();
