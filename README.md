@@ -78,7 +78,8 @@ Playback timing, step advancement, cancellation, and completed-action tracking
 are managed by a dedicated presentation controller. Presentation trip creation,
 inspection, assignment editing, and progression are in a separate action
 extension, alongside extracted map, alert, visit, report, and workspace actions;
-the app shell retains step dispatch, screen widgets, and navigation.
+step dispatch and simulated-action error handling are in their own module. The
+app shell retains screen widgets and navigation.
 
 The role paths use the existing app controls and saved demo operations:
 

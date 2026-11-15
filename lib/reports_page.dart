@@ -47,9 +47,9 @@ class ReportsPageState extends State<ReportsPage> {
   @override
   void initState() {
     super.initState();
-    final now = DateTime.now();
-    _from = DateTime(now.year, now.month);
-    _to = DateTime(now.year, now.month, now.day);
+    final today = lagosDay(DateTime.now());
+    _from = DateTime(today.year, today.month);
+    _to = DateTime(today.year, today.month, today.day);
   }
 
   String _date(DateTime value) =>
