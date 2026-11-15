@@ -74,6 +74,11 @@ Driver, Supervisor, or All Personnel. The All Personnel tour begins with
 Dispatcher coordination, then hands off to the Driver and Supervisor, and
 finishes with the detailed Administrator workspace review. The selected
 operational scenario changes which actions are safe and applicable.
+Playback timing, step advancement, cancellation, and completed-action tracking
+are managed by a dedicated presentation controller. Presentation trip creation,
+inspection, assignment editing, and progression are in a separate action
+extension, alongside extracted map, alert, visit, report, and workspace actions;
+the app shell retains step dispatch, screen widgets, and navigation.
 
 The role paths use the existing app controls and saved demo operations:
 
